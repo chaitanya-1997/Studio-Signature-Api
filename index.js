@@ -9280,6 +9280,9 @@ app.post("/api/vendor/reset-password", async (req, res) => {
   }
 });
 
+app.get('/', (req, res) => {
+  res.send('App is running');
+});
 
 
 
