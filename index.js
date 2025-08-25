@@ -132,7 +132,6 @@ const generateInvoiceNumber = async () => {
 
 //Signup API
 
-
 app.post("/api/signup", async (req, res) => {
   const {
     userType,
@@ -499,13 +498,12 @@ app.get("/api/verify-token", authenticateToken, async (req, res) => {
   res.json({ user: { id: req.user.id, email: req.user.email } });
 });
 
-
 // app.get("/api/profile", authenticateToken, async (req, res) => {
 //   try {
 //     const userId = req.user.id;
 //     const [users] = await pool.query(
-//       `SELECT u.id, u.user_type, u.full_name, u.company_name, u.email, u.phone, 
-//               u.street, u.city, u.state, u.postal_code, u.account_status, u.last_login, 
+//       `SELECT u.id, u.user_type, u.full_name, u.company_name, u.email, u.phone,
+//               u.street, u.city, u.state, u.postal_code, u.account_status, u.last_login,
 //               u.admin_discount, u.created_at, u.notes, u.profile_photo,u.admin_discount,
 //               u.team_member_id, t.name AS team_member_name, t.position AS team_member_position,
 //               t.email AS team_member_email, t.phone AS team_member_phone, t.photo_path AS team_member_photo
@@ -529,15 +527,156 @@ app.get("/api/verify-token", authenticateToken, async (req, res) => {
 
 
 
+// app.get("/api/profile", authenticateToken, async (req, res) => {
+//   try {
+//     const userId = req.user.id;
+//     console.log("Fetching profile for user ID:", userId);
+//     const [users] = await pool.query(
+//       `SELECT u.id, u.user_type, u.full_name, u.company_name, u.email, u.phone, 
+//               u.street, u.city, u.state, u.postal_code, u.account_status, u.last_login, 
+//               u.admin_discount, u.created_at, u.notes, u.profile_photo, u.team_member_id, 
+//               t.name AS team_member_name, t.position AS team_member_position,
+//               t.email AS team_member_email, t.phone AS team_member_phone, 
+//               t.photo_path AS team_member_photo
+//        FROM users u
+//        LEFT JOIN team_members t ON u.team_member_id = t.id
+//        WHERE u.id = ?`,
+//       [userId]
+//     );
+
+//     if (users.length === 0) {
+//       return res.status(404).json({ error: "User not found" });
+//     }
+
+//     const user = users[0];
+//     res.json({
+//       id: user.id,
+//       userType: user.user_type,
+//       fullName: user.full_name,
+//       companyName: user.company_name || "",
+//       email: user.email,
+//       phone: user.phone || "",
+//       street: user.street || "",
+//       city: user.city || "",
+//       state: user.state || "",
+//       postalCode: user.postal_code || "",
+//       accountStatus: user.account_status,
+//       lastLogin: user.last_login,
+//       adminDiscount: user.admin_discount || null,
+//       createdAt: user.created_at,
+//       notes: user.notes || "",
+//       profilePhoto: user.profile_photo
+//         ? `${req.protocol}://${req.get("host")}${
+//             user.profile_photo
+//           }?t=${Date.now()}`
+//         : null,
+//       teamMember: user.team_member_id
+//         ? {
+//             id: user.team_member_id,
+//             name: user.team_member_name || "",
+//             position: user.team_member_position || "",
+//             email: user.team_member_email || "",
+//             phone: user.team_member_phone || "",
+//             photo: user.team_member_photo
+//               ? `${req.protocol}://${req.get("host")}${
+//                   user.team_member_photo
+//                 }?t=${Date.now()}`
+//               : null,
+//           }
+//         : null,
+//     });
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// });
+
+
+
+
+// PUT /api/profile
+
+
+
+
+// app.get("/api/profile", authenticateToken, async (req, res) => {
+//   try {
+//     const userId = req.user.id;
+//     console.log("Fetching profile for user ID:", userId);
+
+//     const [users] = await pool.query(
+//       `SELECT u.id, u.user_type, u.full_name, u.company_name, u.email, u.phone, 
+//               u.street, u.city, u.state, u.postal_code, u.account_status, u.last_login, 
+//               u.admin_discount, u.created_at, u.notes, u.profile_photo, u.team_member_id, 
+//               u.special_cust,
+//               t.name AS team_member_name, t.position AS team_member_position,
+//               t.email AS team_member_email, t.phone AS team_member_phone, 
+//               t.photo_path AS team_member_photo
+//        FROM users u
+//        LEFT JOIN team_members t ON u.team_member_id = t.id
+//        WHERE u.id = ?`,
+//       [userId]
+//     );
+
+//     if (users.length === 0) {
+//       return res.status(404).json({ error: "User not found" });
+//     }
+
+//     const user = users[0];
+//     res.json({
+//       id: user.id,
+//       userType: user.user_type,
+//       fullName: user.full_name,
+//       companyName: user.company_name || "",
+//       email: user.email,
+//       phone: user.phone || "",
+//       street: user.street || "",
+//       city: user.city || "",
+//       state: user.state || "",
+//       postalCode: user.postal_code || "",
+//       accountStatus: user.account_status,
+//       lastLogin: user.last_login,
+//       adminDiscount: user.admin_discount || null,
+//       createdAt: user.created_at,
+//       notes: user.notes || "",
+//       specialCust: user.special_cust,   // ✅ added here
+//       profilePhoto: user.profile_photo
+//         ? `${req.protocol}://${req.get("host")}${
+//             user.profile_photo
+//           }?t=${Date.now()}`
+//         : null,
+//       teamMember: user.team_member_id
+//         ? {
+//             id: user.team_member_id,
+//             name: user.team_member_name || "",
+//             position: user.team_member_position || "",
+//             email: user.team_member_email || "",
+//             phone: user.team_member_phone || "",
+//             photo: user.team_member_photo
+//               ? `${req.protocol}://${req.get("host")}${
+//                   user.team_member_photo
+//                 }?t=${Date.now()}`
+//               : null,
+//           }
+//         : null,
+//     });
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// });
+
 
 app.get("/api/profile", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     console.log("Fetching profile for user ID:", userId);
+
     const [users] = await pool.query(
       `SELECT u.id, u.user_type, u.full_name, u.company_name, u.email, u.phone, 
               u.street, u.city, u.state, u.postal_code, u.account_status, u.last_login, 
               u.admin_discount, u.created_at, u.notes, u.profile_photo, u.team_member_id, 
+              u.special_cust,
               t.name AS team_member_name, t.position AS team_member_position,
               t.email AS team_member_email, t.phone AS team_member_phone, 
               t.photo_path AS team_member_photo
@@ -568,8 +707,11 @@ app.get("/api/profile", authenticateToken, async (req, res) => {
       adminDiscount: user.admin_discount || null,
       createdAt: user.created_at,
       notes: user.notes || "",
+      specialCust: user.special_cust,   // ✅ added here
       profilePhoto: user.profile_photo
-        ? `${req.protocol}://${req.get("host")}${user.profile_photo}?t=${Date.now()}`
+        ? `${req.protocol}://${req.get("host")}${
+            user.profile_photo
+          }?t=${Date.now()}`
         : null,
       teamMember: user.team_member_id
         ? {
@@ -579,7 +721,9 @@ app.get("/api/profile", authenticateToken, async (req, res) => {
             email: user.team_member_email || "",
             phone: user.team_member_phone || "",
             photo: user.team_member_photo
-              ? `${req.protocol}://${req.get("host")}${user.team_member_photo}?t=${Date.now()}`
+              ? `${req.protocol}://${req.get("host")}${
+                  user.team_member_photo
+                }?t=${Date.now()}`
               : null,
           }
         : null,
@@ -589,14 +733,6 @@ app.get("/api/profile", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
-
-
-
-
-
-// PUT /api/profile
-
 
 
 app.put(
@@ -807,7 +943,6 @@ app.get("/api/orders/next-id", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch next order ID" });
   }
 });
-
 
 app.post("/api/orders", authenticateToken, async (req, res) => {
   const {
@@ -1865,6 +2000,106 @@ app.get("/api/items", authenticateToken, async (req, res) => {
   }
 });
 
+
+// API to fetch unique item types
+app.get('/api/items/types', authenticateToken, async (req, res) => {
+  try {
+    const query = 'SELECT DISTINCT item_type FROM items';
+    const [rows] = await pool.query(query);
+    const itemTypes = rows.map(row => row.item_type);
+    res.json(itemTypes);
+  } catch (err) {
+    console.error('Error fetching item types:', err);
+    res.status(500).json({ error: 'Failed to fetch item types' });
+  }
+});
+
+// API to fetch unique colors for a given item type
+app.get('/api/items/colors', authenticateToken, async (req, res) => {
+  try {
+    const { item_type } = req.query;
+    if (!item_type) {
+      return res.status(400).json({ error: 'item_type parameter is required' });
+    }
+    const query = 'SELECT DISTINCT color FROM items WHERE item_type = ?';
+    const [rows] = await pool.query(query, [item_type.toUpperCase()]);
+    const colors = rows.map(row => row.color);
+    res.json(colors);
+  } catch (err) {
+    console.error('Error fetching colors:', err);
+    res.status(500).json({ error: 'Failed to fetch colors' });
+  }
+});
+
+
+app.get("/api/specialitems", authenticateToken, async (req, res) => {
+  try {
+    const { item_type, color, sku_prefix, sku } = req.query;
+    let query = "SELECT * FROM specialitems WHERE 1=1";
+    const params = [];
+
+    if (item_type) {
+      query += " AND item_type = ?";
+      params.push(item_type.toUpperCase());
+    }
+
+    if (color) {
+      query += " AND color = ?";
+      params.push(color);
+    }
+
+    if (sku_prefix) {
+      query += " AND sku LIKE ?";
+      params.push(`${sku_prefix}%`);
+    }
+
+    if (sku) {
+      query += " AND sku = ?";
+      params.push(sku);
+    }
+
+    const [rows] = await pool.query(query, params);
+    res.json(rows);
+  } catch (err) {
+    console.error("Error fetching items:", err);
+    res.status(500).json({ error: "Failed to fetch items" });
+  }
+});
+
+
+// API to fetch unique item types
+app.get('/api/specialitems/types', authenticateToken, async (req, res) => {
+  try {
+    const query = 'SELECT DISTINCT item_type FROM specialitems';
+    const [rows] = await pool.query(query);
+    const itemTypes = rows.map(row => row.item_type);
+    res.json(itemTypes);
+  } catch (err) {
+    console.error('Error fetching item types:', err);
+    res.status(500).json({ error: 'Failed to fetch item types' });
+  }
+});
+
+// API to fetch unique colors for a given item type
+app.get('/api/specialitems/colors', authenticateToken, async (req, res) => {
+  try {
+    const { item_type } = req.query;
+    if (!item_type) {
+      return res.status(400).json({ error: 'item_type parameter is required' });
+    }
+    const query = 'SELECT DISTINCT color FROM specialitems WHERE item_type = ?';
+    const [rows] = await pool.query(query, [item_type.toUpperCase()]);
+    const colors = rows.map(row => row.color);
+    res.json(colors);
+  } catch (err) {
+    console.error('Error fetching colors:', err);
+    res.status(500).json({ error: 'Failed to fetch colors' });
+  }
+});
+
+
+
+
 app.get("/api/user-stats", authenticateToken, async (req, res) => {
   try {
     const [stats] = await pool.query(
@@ -2607,8 +2842,6 @@ app.post("/api/admin/login", async (req, res) => {
   }
 });
 
-
-
 app.get("/api/admin/profile", adminauthenticateToken, async (req, res) => {
   try {
     console.log("Fetching profile for admin ID:", req.admin.id);
@@ -2648,7 +2881,9 @@ app.put(
 
     // Validation
     if (!fullName || !email) {
-      return res.status(400).json({ error: "Full name and email are required" });
+      return res
+        .status(400)
+        .json({ error: "Full name and email are required" });
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: "Invalid email format" });
@@ -2686,7 +2921,14 @@ app.put(
       // Update profile
       const [result] = await pool.query(
         "UPDATE admins SET full_name = ?, email = ?, phone = ?, bio = ?, profile_photo = ?, updated_at = NOW() WHERE id = ?",
-        [fullName, email, phone || null, bio || null, updatedPhotoPath, req.admin.id]
+        [
+          fullName,
+          email,
+          phone || null,
+          bio || null,
+          updatedPhotoPath,
+          req.admin.id,
+        ]
       );
 
       if (result.affectedRows === 0) {
@@ -2709,7 +2951,6 @@ app.put(
     }
   }
 );
-
 
 // Update Admin Password
 
@@ -2910,13 +3151,12 @@ app.post("/api/admin/reset-password", async (req, res) => {
   }
 });
 
-
 // app.get("/api/admin/users", adminauthenticateToken, async (req, res) => {
 //   try {
 //     const [users] = await pool.query(
-//       `SELECT u.id, u.full_name, u.email, u.phone, u.created_at, u.last_login, 
-//               u.account_status, u.is_active, u.company_name, u.street, u.city, 
-//               u.state, u.postal_code, u.admin_discount, u.updated_at, u.notes, 
+//       `SELECT u.id, u.full_name, u.email, u.phone, u.created_at, u.last_login,
+//               u.account_status, u.is_active, u.company_name, u.street, u.city,
+//               u.state, u.postal_code, u.admin_discount, u.updated_at, u.notes,
 //               u.team_member_id, t.name AS team_member_name
 //        FROM users u
 //        LEFT JOIN team_members t ON u.team_member_id = t.id
@@ -2950,7 +3190,6 @@ app.post("/api/admin/reset-password", async (req, res) => {
 //     res.status(500).json({ error: "Server error" });
 //   }
 // });
-
 
 app.get("/api/admin/users", adminauthenticateToken, async (req, res) => {
   try {
@@ -2986,7 +3225,7 @@ app.get("/api/admin/users", adminauthenticateToken, async (req, res) => {
         team_member_name: user.team_member_name,
         profile_photo: user.profile_photo
           ? `${req.protocol}://${req.get("host")}${user.profile_photo}`
-        : null,
+          : null,
       })),
     });
   } catch (err) {
@@ -2994,6 +3233,56 @@ app.get("/api/admin/users", adminauthenticateToken, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
+
+
+// app.get("/api/admin/users", adminauthenticateToken, async (req, res) => {
+//   try {
+//     const [users] = await pool.query(
+//       `SELECT u.id, u.full_name, u.email, u.phone, u.created_at, u.last_login, 
+//               u.account_status, u.is_active, u.company_name, u.street, u.city, u.special_cust,
+//               u.state, u.postal_code, u.admin_discount, u.updated_at, u.notes, 
+//               u.team_member_id, u.profile_photo, t.name AS team_member_name
+//        FROM users u
+//        LEFT JOIN team_members t ON u.team_member_id = t.id
+//        WHERE u.user_type = 'customer'`
+//     );
+
+//     res.json({
+//       users: users.map((user) => ({
+//         id: user.id,
+//         fullName: user.full_name,
+//         email: user.email,
+//         phone: user.phone,
+//         joinDate: user.created_at,
+//         lastLogin: user.last_login || null,
+//         account_status: user.account_status,
+//         is_active: user.is_active,
+//         company_name: user.company_name,
+//         street: user.street,
+//         city: user.city,
+//         state: user.state,
+//         postal_code: user.postal_code,
+//         admin_discount: user.admin_discount,
+//         updated_at: user.updated_at,
+//         notes: user.notes,
+//         team_member_id: user.team_member_id,
+//         team_member_name: user.team_member_name,
+//         profile_photo: user.profile_photo
+//           ? `${req.protocol}://${req.get("host")}${user.profile_photo}`
+//           : null,
+//         special_cust: user.special_cust   // ✅ Added here
+//       })),
+//     });
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// });
+
+
+
+
 
 
 app.get("/api/admin/vendors", adminauthenticateToken, async (req, res) => {
@@ -3164,9 +3453,7 @@ app.put(
   }
 );
 
-
-app.put(
-  "/api/admin/user/:id/discount",
+app.put("/api/admin/user/:id/discount",
   adminauthenticateToken,
   async (req, res) => {
     const { id } = req.params;
@@ -3299,11 +3586,160 @@ app.put(
   }
 );
 
+
+
 // Update User Status
 
-app.put(
-  "/api/admin/user/:id/status",
-  adminauthenticateToken,
+
+// app.put("/api/admin/user/:id/discount",
+//   adminauthenticateToken,
+//   async (req, res) => {
+//     const { id } = req.params;
+//     const { admin_discount, notes, team_member_id, special_cust } = req.body;
+
+//     console.log("Received payload:", { admin_discount, notes, team_member_id, special_cust });
+
+//     // Validate discount
+//     if (
+//       admin_discount !== undefined &&
+//       (typeof admin_discount !== "number" ||
+//         admin_discount < 0 ||
+//         admin_discount > 100)
+//     ) {
+//       return res
+//         .status(400)
+//         .json({ error: "Discount must be a number between 0 and 100" });
+//     }
+
+//     // Validate notes (optional, can be null or string)
+//     if (notes !== undefined && notes !== null && typeof notes !== "string") {
+//       return res.status(400).json({ error: "Notes must be a string or null" });
+//     }
+
+//     // Validate team_member_id
+//     let parsedTeamMemberId = team_member_id;
+//     if (
+//       team_member_id !== undefined &&
+//       team_member_id !== null &&
+//       typeof team_member_id === "string" &&
+//       !/^\d+$/.test(team_member_id)
+//     ) {
+//       return res
+//         .status(400)
+//         .json({ error: "Team member ID must be a valid integer or null" });
+//     }
+//     if (typeof team_member_id === "string") {
+//       parsedTeamMemberId = parseInt(team_member_id);
+//       if (isNaN(parsedTeamMemberId)) {
+//         return res
+//           .status(400)
+//           .json({ error: "Team member ID must be a valid integer" });
+//       }
+//     }
+//     if (
+//       parsedTeamMemberId !== null &&
+//       (typeof parsedTeamMemberId !== "number" ||
+//         !Number.isInteger(parsedTeamMemberId))
+//     ) {
+//       return res
+//         .status(400)
+//         .json({ error: "Team member ID must be an integer or null" });
+//     }
+
+//     // ✅ Validate special_cust (must be 0 or 1 if provided)
+//     if (
+//       special_cust !== undefined &&
+//       ![0, 1, "0", "1"].includes(special_cust)
+//     ) {
+//       return res
+//         .status(400)
+//         .json({ error: "special_cust must be 0 or 1" });
+//     }
+
+//     try {
+//       // Check if user exists
+//       const [users] = await pool.query("SELECT id FROM users WHERE id = ?", [id]);
+//       if (users.length === 0) {
+//         return res.status(404).json({ error: "User not found" });
+//       }
+
+//       // Validate team_member_id if provided
+//       if (parsedTeamMemberId) {
+//         const [teamMembers] = await pool.query(
+//           "SELECT id, name FROM team_members WHERE id = ?",
+//           [parsedTeamMemberId]
+//         );
+//         if (teamMembers.length === 0) {
+//           return res.status(404).json({ error: "Team member not found" });
+//         }
+//       }
+
+//       // ✅ Update discount, notes, team_member_id, special_cust
+//       await pool.query(
+//         `UPDATE users 
+//          SET admin_discount = ?, notes = ?, team_member_id = ?, special_cust = ?, updated_at = NOW() 
+//          WHERE id = ?`,
+//         [
+//           admin_discount !== undefined ? admin_discount : null,
+//           notes !== undefined ? notes : null,
+//           parsedTeamMemberId !== undefined ? parsedTeamMemberId : null,
+//           special_cust !== undefined ? special_cust : 0,  // default 0
+//           id,
+//         ]
+//       );
+
+//       // Fetch updated user data
+//       const [updatedUser] = await pool.query(
+//         `SELECT u.id, u.full_name, u.email, u.phone, u.created_at, u.last_login, 
+//                 u.account_status, u.is_active, u.company_name, u.street, u.city, 
+//                 u.state, u.postal_code, u.admin_discount, u.updated_at, u.notes, 
+//                 u.team_member_id, t.name AS team_member_name, u.special_cust
+//          FROM users u
+//          LEFT JOIN team_members t ON u.team_member_id = t.id
+//          WHERE u.id = ?`,
+//         [id]
+//       );
+
+//       if (updatedUser.length === 0) {
+//         return res.status(404).json({ error: "User not found after update" });
+//       }
+
+//       res.json({
+//         message:
+//           "Customer discount, notes, team member, and special flag updated successfully",
+//         user: {
+//           id: updatedUser[0].id,
+//           fullName: updatedUser[0].full_name,
+//           email: updatedUser[0].email,
+//           phone: updatedUser[0].phone,
+//           joinDate: updatedUser[0].created_at,
+//           lastLogin: updatedUser[0].last_login || null,
+//           account_status: updatedUser[0].account_status,
+//           is_active: updatedUser[0].is_active,
+//           company_name: updatedUser[0].company_name,
+//           street: updatedUser[0].street,
+//           city: updatedUser[0].city,
+//           state: updatedUser[0].state,
+//           postal_code: updatedUser[0].postal_code,
+//           admin_discount: updatedUser[0].admin_discount,
+//           updated_at: updatedUser[0].updated_at,
+//           notes: updatedUser[0].notes,
+//           team_member_id: updatedUser[0].team_member_id,
+//           team_member_name: updatedUser[0].team_member_name,
+//           special_cust: updatedUser[0].special_cust, // ✅ included
+//         },
+//       });
+//     } catch (err) {
+//       console.error("Server error:", err);
+//       res.status(500).json({ error: "Server error" });
+//     }
+//   }
+// );
+
+
+
+
+app.put(  "/api/admin/user/:id/status",  adminauthenticateToken,
   async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
@@ -3384,7 +3820,7 @@ app.put(
 // app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
 //   try {
 //     const [orders] = await pool.query(`
-//       SELECT 
+//       SELECT
 //         o.id AS id,
 //         o.order_id AS orderId,
 //         o.user_id,
@@ -3467,8 +3903,6 @@ app.put(
 //   }
 // });
 
-
-
 app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
   try {
     const [orders] = await pool.query(`
@@ -3549,7 +3983,9 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
         ),
         tax: parseFloat(order.tax || 0).toFixed(2),
         shipping:
-          order.shipping !== null ? parseFloat(order.shipping).toFixed(2) : null,
+          order.shipping !== null
+            ? parseFloat(order.shipping).toFixed(2)
+            : null,
         account: order.account,
         bill_to: order.bill_to,
         items: parsedItems,
@@ -3566,7 +4002,6 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
 
 app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
   const orderId = req.params.id;
@@ -5696,7 +6131,6 @@ app.get("/api/admin/items", adminauthenticateToken, async (req, res) => {
   }
 });
 
-
 // app.post("/api/admin/items", adminauthenticateToken, async (req, res) => {
 //   try {
 //     const {
@@ -5761,7 +6195,6 @@ app.get("/api/admin/items", adminauthenticateToken, async (req, res) => {
 //     res.status(500).json({ error: "Failed to create item" });
 //   }
 // });
-
 
 app.post("/api/admin/items", adminauthenticateToken, async (req, res) => {
   try {
@@ -5883,7 +6316,16 @@ app.post("/api/admin/items", adminauthenticateToken, async (req, res) => {
 app.put("/api/admin/items/:id", adminauthenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { sku, description, item_type, unit_of_measure, color, price, qty, unitcost } = req.body;
+    const {
+      sku,
+      description,
+      item_type,
+      unit_of_measure,
+      color,
+      price,
+      qty,
+      unitcost,
+    } = req.body;
 
     // Validate required fields
     if (
@@ -6073,7 +6515,9 @@ const excelupload = multer({
   },
 });
 
-app.post("/api/admin/import-items", adminauthenticateToken,
+app.post(
+  "/api/admin/import-items",
+  adminauthenticateToken,
   excelupload.single("file"),
   async (req, res) => {
     let connection;
@@ -6132,7 +6576,7 @@ app.post("/api/admin/import-items", adminauthenticateToken,
             itemKeys["unit price"] !== undefined
               ? parseFloat(itemKeys["unit price"])
               : null;
-               const unitcost =
+          const unitcost =
             itemKeys["unit cost"] !== undefined
               ? parseFloat(itemKeys["unit cost"])
               : "0.00";
@@ -6206,6 +6650,311 @@ app.post("/api/admin/import-items", adminauthenticateToken,
   }
 );
 
+
+
+app.delete('/api/admin/allitems', authenticateToken, async (req, res) => {
+  try {
+    // Execute SQL query to delete all items
+    await pool.query('DELETE FROM items');
+    res.status(200).json({ message: 'All items deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting all items:', err);
+    res.status(500).json({ error: 'Failed to delete all items', details: err.message });
+  }
+});
+
+app.post("/api/admin/import-specialitems",
+  adminauthenticateToken,
+  excelupload.single("file"),
+  async (req, res) => {
+    let connection;
+
+    try {
+      // Get database connection
+      connection = await pool.getConnection();
+
+      // Check if file was uploaded
+      if (!req.file) {
+        throw new Error("No Excel file was uploaded");
+      }
+
+      // Read Excel file from buffer
+      const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(sheet);
+
+      if (data.length === 0) {
+        throw new Error("Excel file is empty or has no data rows");
+      }
+
+      console.log("Excel headers:", Object.keys(data[0]));
+
+      let skippedRows = [];
+
+      try {
+        await connection.beginTransaction();
+
+        for (const [index, item] of data.entries()) {
+          // Normalize keys to lowercase and trim
+          const itemKeys = Object.keys(item).reduce((acc, key) => {
+            acc[key.toLowerCase()] =
+              typeof item[key] === "string" ? item[key].trim() : item[key];
+            return acc;
+          }, {});
+
+          // Map fields to database columns
+          const sku = itemKeys["no"] ? String(itemKeys["no"]).trim() : null;
+          const description = itemKeys["description"]
+            ? String(itemKeys["description"]).trim()
+            : null;
+          const color = itemKeys["color"]
+            ? String(itemKeys["color"]).trim()
+            : null;
+          const item_type = itemKeys["description 2"]
+            ? String(itemKeys["description 2"]).trim()
+            : "STAINED ITEMS";
+          const search_description = itemKeys["item name"]
+            ? String(itemKeys["item name"]).trim()
+            : null;
+          const unit_of_measure = itemKeys["base unit of measure"]
+            ? String(itemKeys["base unit of measure"]).trim()
+            : "Each";
+          const price =
+            itemKeys["unit price"] !== undefined
+              ? parseFloat(itemKeys["unit price"])
+              : null;
+          const unitcost =
+            itemKeys["unit cost"] !== undefined
+              ? parseFloat(itemKeys["unit cost"])
+              : "0.00";
+          const qty =
+            itemKeys["qty"] !== undefined ? parseFloat(itemKeys["qty"]) : 0;
+
+          console.log(
+            `Row ${
+              index + 2
+            }: SKU=${sku}, Description=${description}, Color=${color}, Item Type=${item_type}, Search Description=${search_description}, Unit of Measure=${unit_of_measure}, Price=${price}, Qty=${qty}`
+          );
+
+          if (!sku || !description) {
+            skippedRows.push({
+              row: index + 2,
+              item,
+              reason: `Missing SKU or Description`,
+            });
+            continue;
+          }
+
+          // Insert into items table
+          await connection.query(
+            `INSERT INTO specialitems (
+            sku, description, item_type, search_description, unit_of_measure, price, color, qty,unitcost
+           
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              sku,
+              description,
+              item_type,
+              search_description,
+              unit_of_measure,
+              price,
+              color,
+              qty,
+              unitcost,
+             
+            ]
+          );
+        }
+
+        await connection.commit();
+
+        res.json({
+          message: "Data imported successfully",
+          skippedRows,
+        });
+      } catch (err) {
+        console.error("Error importing data:", err);
+        if (connection) {
+          await connection.rollback();
+        }
+        res
+          .status(500)
+          .json({ error: "Failed to import data", details: err.message });
+      }
+    } catch (error) {
+      console.error("Error reading file or opening connection:", error.message);
+      res.status(500).json({ error: error.message });
+    } finally {
+      if (connection) {
+        connection.release();
+      }
+    }
+  }
+);
+
+
+app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
+  try {
+    const { sku, item_type, color } = req.query;
+    let query =
+      "SELECT id, sku, description, item_type, search_description, unit_of_measure, price,  created_at, updated_at, color,qty,unitcost FROM specialitems WHERE 1=1";
+    const params = [];
+
+    if (sku) {
+      query += " AND sku LIKE ?";
+      params.push(`%${sku}%`);
+    }
+    if (item_type) {
+      query += " AND item_type = ?";
+      params.push(item_type.toUpperCase());
+    }
+    if (color) {
+      query += " AND color = ?";
+      params.push(color);
+    }
+
+    const [rows] = await pool.query(query, params);
+    res.json(rows);
+  } catch (err) {
+    console.error("Error fetching items:", err);
+    res.status(500).json({ error: "Failed to fetch items" });
+  }
+});
+
+
+app.post("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
+  try {
+    const {
+      sku,
+      description,
+      item_type,
+      unit_of_measure,
+      color,
+      price,
+      qty,
+      unitcost, // Added unitcost
+      search_description,
+     
+    } = req.body;
+
+    // Validate required fields
+    if (
+      !sku ||
+      !description ||
+      !item_type ||
+      !unit_of_measure ||
+      !color ||
+      price == null ||
+      qty == null ||
+      unitcost == null // Added unitcost validation
+    ) {
+      return res.status(400).json({
+        error:
+          "Missing required fields: sku, description, item_type, unit_of_measure, color, price, qty, unitcost",
+      });
+    }
+
+    const [result] = await pool.query(
+      "INSERT INTO specialitems (sku, description, item_type, search_description, unit_of_measure, color, price, qty, unitcost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [
+        sku,
+        description,
+        item_type.toUpperCase(),
+        search_description || null,
+        unit_of_measure,
+        color,
+        price,
+        qty,
+        unitcost, // Added unitcost to query
+     
+      ]
+    );
+
+    const [newItem] = await pool.query("SELECT * FROM specialitems WHERE id = ?", [
+      result.insertId,
+    ]);
+    res.status(201).json(newItem[0]);
+  } catch (err) {
+    console.error("Error creating item:", err);
+    res.status(500).json({ error: "Failed to create item" });
+  }
+});
+
+app.delete("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [result] = await pool.query("DELETE FROM specialitems WHERE id = ?", [id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    res.json({ message: "Item deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting item:", err);
+    res.status(500).json({ error: "Failed to delete item" });
+  }
+});
+
+
+app.put("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      sku,
+      description,
+      item_type,
+      unit_of_measure,
+      color,
+      price,
+      qty,
+      unitcost,
+    } = req.body;
+
+    // Validate required fields
+    if (
+      !sku ||
+      !description ||
+      !item_type ||
+      !unit_of_measure ||
+      !color ||
+      price == null ||
+      qty == null ||
+      unitcost == null // Added unitcost validation
+    ) {
+      return res.status(400).json({
+        error:
+          "Missing required fields: sku, description, item_type, unit_of_measure, color, price, qty, unitcost",
+      });
+    }
+
+    const [result] = await pool.query(
+      "UPDATE specialitems SET sku = ?, description = ?, item_type = ?, unit_of_measure = ?, color = ?, price = ?, qty = ?, unitcost = ?, updated_at = NOW() WHERE id = ?",
+      [
+        sku,
+        description,
+        item_type.toUpperCase(),
+        unit_of_measure,
+        color,
+        price,
+        qty,
+        unitcost, // Added unitcost to query
+        id,
+      ]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    res.json({ message: "Item updated successfully" });
+  } catch (err) {
+    console.error("Error updating item:", err);
+    res.status(500).json({ error: "Failed to update item" });
+  }
+});
+
+
 app.post(
   "/api/admin/products",
   adminauthenticateToken,
@@ -6270,34 +7019,30 @@ app.post(
   }
 );
 
-app.get(
-  "/api/admin/products",
-  adminauthenticateToken,
-  async (req, res) => {
-    try {
-      // Fetch all products
-      const [products] = await pool.query(`SELECT * FROM products`);
+app.get("/api/admin/products", adminauthenticateToken, async (req, res) => {
+  try {
+    // Fetch all products
+    const [products] = await pool.query(`SELECT * FROM products`);
 
-      // Format response to match frontend expectations
-      const formattedProducts = products.map((product) => ({
-        id: product.id,
-        name: product.name,
-        item_type: product.item_type,
-        color: product.color,
-        photo_path: product.photo_path
-          ? `${req.protocol}://${req.get("host")}${product.photo_path}`
-          : null,
-        is_visible: product.is_visible,
-        updated_at: new Date(product.updated_at).toISOString(),
-      }));
+    // Format response to match frontend expectations
+    const formattedProducts = products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      item_type: product.item_type,
+      color: product.color,
+      photo_path: product.photo_path
+        ? `${req.protocol}://${req.get("host")}${product.photo_path}`
+        : null,
+      is_visible: product.is_visible,
+      updated_at: new Date(product.updated_at).toISOString(),
+    }));
 
-      res.json(formattedProducts);
-    } catch (err) {
-      console.error("Server error:", err);
-      res.status(500).json({ error: err.message || "Server error" });
-    }
+    res.json(formattedProducts);
+  } catch (err) {
+    console.error("Server error:", err);
+    res.status(500).json({ error: err.message || "Server error" });
   }
-);
+});
 
 // GET /api/admin/products/:id
 app.get("/api/admin/products/:id", adminauthenticateToken, async (req, res) => {
@@ -9381,11 +10126,9 @@ app.post("/api/vendor/reset-password", async (req, res) => {
   }
 });
 
-app.get('/', (req, res) => {
-  res.send('App is running');
+app.get("/", (req, res) => {
+  res.send("App is running");
 });
-
-
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
