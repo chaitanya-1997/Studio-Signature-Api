@@ -944,6 +944,361 @@ app.get("/api/orders/next-id", async (req, res) => {
   }
 });
 
+// app.post("/api/orders", authenticateToken, async (req, res) => {
+//   const {
+//     doorStyle,
+//     finishType,
+//     stainOption,
+//     paintOption,
+//     account,
+//     billTo,
+//     items,
+//     designServicesPrice,
+//     assemblyFlag,
+//     subtotal,
+//     tax,
+//     shipping,
+//     total,
+//     discount,
+//   } = req.body;
+
+//   let connection;
+
+//   try {
+//     // Validations
+//     if (!items || !Array.isArray(items) || items.length === 0) {
+//       return res
+//         .status(400)
+//         .json({ error: "Items are required and must be a non-empty array" });
+//     }
+//     if (!subtotal || !tax || !total) {
+//       return res
+//         .status(400)
+//         .json({ error: "Subtotal, tax, and total are required" });
+//     }
+//     if (!doorStyle || !finishType || !account || !billTo) {
+//       return res.status(400).json({
+//         error: "Door style, finish type, account, and bill-to are required",
+//       });
+//     }
+//     if (finishType === "Stained" && !stainOption) {
+//       return res
+//         .status(400)
+//         .json({ error: "Stain option is required for stained finish" });
+//     }
+//     if (finishType === "Painted" && !paintOption) {
+//       return res
+//         .status(400)
+//         .json({ error: "Paint option is required for painted finish" });
+//     }
+//     if (designServicesPrice < 0) {
+//       return res
+//         .status(400)
+//         .json({ error: "Design services price cannot be negative" });
+//     }
+//     if (!["Included", "Not Included"].includes(assemblyFlag)) {
+//       return res
+//         .status(400)
+//         .json({ error: "Assembly flag must be 'Included' or 'Not Included'" });
+//     }
+
+//     const userId = req.user.id;
+
+//     // Get user info
+//     const [userResult] = await pool.query(
+//       "SELECT full_name, email, phone, admin_discount FROM users WHERE id = ?",
+//       [userId]
+//     );
+//     if (userResult.length === 0) {
+//       return res.status(404).json({ error: "User not found" });
+//     }
+
+//     const userFullName = userResult[0].full_name;
+//     const userEmail = userResult[0].email;
+//     const userPhone = userResult[0].phone || "N/A";
+//     const adminDiscount = parseFloat(userResult[0].admin_discount) || 0;
+
+//     // Calculate expected subtotal
+//     const itemsSubtotal = items.reduce(
+//       (sum, item) => sum + parseFloat(item.totalAmount || 0),
+//       0
+//     );
+//     const expectedSubtotal = parseFloat(
+//       (itemsSubtotal + designServicesPrice).toFixed(2)
+//     );
+//     if (parseFloat(subtotal.toFixed(2)) !== expectedSubtotal) {
+//       return res.status(400).json({
+//         error: `Invalid subtotal. Expected: ${expectedSubtotal}, Received: ${subtotal}`,
+//       });
+//     }
+
+//     // Validate discount
+//     const expectedDiscount = parseFloat((subtotal * adminDiscount).toFixed(2));
+//     if (
+//       discount === undefined ||
+//       parseFloat(discount.toFixed(2)) !== expectedDiscount
+//     ) {
+//       return res.status(400).json({
+//         error: `Invalid discount amount. Expected: ${expectedDiscount}, Received: ${discount}`,
+//       });
+//     }
+
+//     // Validate total
+//     const expectedTax = parseFloat((subtotal * 0.07).toFixed(2));
+//     const expectedTotal = parseFloat(
+//       (subtotal - expectedDiscount + expectedTax).toFixed(2)
+//     );
+//     if (parseFloat(total.toFixed(2)) !== expectedTotal) {
+//       return res.status(400).json({
+//         error: `Invalid total amount. Expected: ${expectedTotal}, Received: ${total}`,
+//       });
+//     }
+
+//     // Start transaction
+//     connection = await pool.getConnection();
+//     await connection.beginTransaction();
+
+//     // Validate inventory for each item
+//     for (const item of items) {
+//       if (!item.sku || !item.name || !item.quantity || item.quantity < 1) {
+//         throw new Error(
+//           "Invalid item data: SKU, name, and valid quantity are required"
+//         );
+//       }
+
+//       // Check available quantity in items table
+//       const [itemResult] = await connection.query(
+//         "SELECT qty FROM items WHERE sku = ?",
+//         [item.sku]
+//       );
+
+//       if (itemResult.length === 0) {
+//         throw new Error(`Item with SKU ${item.sku} not found in inventory`);
+//       }
+
+//       const availableQty = parseFloat(itemResult[0].qty) || 0;
+//       if (availableQty < item.quantity) {
+//         throw new Error(
+//           `Insufficient stock for SKU ${item.sku}. Available: ${availableQty}, Requested: ${item.quantity}`
+//         );
+//       }
+//     }
+
+//     // Insert order
+//     const [orderResult] = await connection.query(
+//       `INSERT INTO orders (
+//         user_id, door_style, finish_type, stain_option, paint_option, 
+//         account, bill_to, design_services_price, assembly_flag, 
+//         subtotal, tax, shipping, discount, total, status, created_at
+//       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW())`,
+//       [
+//         userId,
+//         doorStyle,
+//         finishType,
+//         stainOption || null,
+//         paintOption || null,
+//         account,
+//         billTo,
+//         designServicesPrice || 0,
+//         assemblyFlag,
+//         subtotal,
+//         tax,
+//         shipping !== undefined ? shipping : null,
+//         discount || 0,
+//         total,
+//       ]
+//     );
+
+//     const autoId = orderResult.insertId;
+
+//     // Generate order_id
+//     const orderId = `S-ORD${String(autoId + 101001).padStart(6, "0")}`;
+
+//     // Update order_id
+//     await connection.query(`UPDATE orders SET order_id = ? WHERE id = ?`, [
+//       orderId,
+//       autoId,
+//     ]);
+
+//     // Insert order items and update inventory
+//     for (const item of items) {
+//       // Insert into order_items
+//       await connection.query(
+//         `INSERT INTO order_items (order_id, sku, name, quantity, price, total_amount, door_style, finish)
+//          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+//         [
+//           autoId,
+//           item.sku,
+//           item.name,
+//           item.quantity,
+//           item.price || null,
+//           item.totalAmount || null,
+//           doorStyle,
+//           finishType,
+//         ]
+//       );
+
+//       // Update qty in items table
+//       await connection.query(`UPDATE items SET qty = qty - ? WHERE sku = ?`, [
+//         item.quantity,
+//         item.sku,
+//       ]);
+//     }
+
+//     // Commit transaction
+//     await connection.commit();
+
+//     // Email template
+//     const orderDetailsHtml = `
+//       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+//         <h3>Order Details</h3>
+//         <ul style="list-style: none; padding: 0;">
+//           <li><strong>Door Style:</strong> ${doorStyle}</li>
+//           <li><strong>Finish Type:</strong> ${finishType}</li>
+//           ${
+//             stainOption
+//               ? `<li><strong>Stain Option:</strong> ${stainOption}</li>`
+//               : ""
+//           }
+//           ${
+//             paintOption
+//               ? `<li><strong>Paint Option:</strong> ${paintOption}</li>`
+//               : ""
+//           }
+//           <li><strong>Ship To:</strong> ${account}</li>
+//           <li><strong>Bill To:</strong> ${billTo}</li>
+//           ${
+//             designServicesPrice > 0
+//               ? `<li><strong>Design Services:</strong> $${parseFloat(
+//                   designServicesPrice
+//                 ).toFixed(2)}</li>`
+//               : ""
+//           }
+//           ${
+//             assemblyFlag === "Included"
+//               ? `<li><strong>Assembly Services:</strong> Included</li>`
+//               : ""
+//           }
+//         </ul>
+//         <h3>Items</h3>
+//         <table style="border-collapse: collapse; width: 100%;">
+//           <thead>
+//             <tr style="background-color: #f2f2f2;">
+//               <th style="border: 1px solid #ddd; padding: 8px;">SKU</th>
+//               <th style="border: 1px solid #ddd; padding: 8px;">Name</th>
+//               <th style="border: 1px solid #ddd; padding: 8px;">Quantity</th>
+//               <th style="border: 1px solid #ddd; padding: 8px;">Price ($)</th>
+//               <th style="border: 1px solid #ddd; padding: 8px;">Total ($)</th>
+//             </tr>
+//           </thead>
+//           <tbody>
+//             ${items
+//               .map(
+//                 (item) => `
+//               <tr>
+//                 <td style="border: 1px solid #ddd; padding: 8px;">${
+//                   item.sku
+//                 }</td>
+//                 <td style="border: 1px solid #ddd; padding: 8px;">${
+//                   item.name
+//                 }</td>
+//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${
+//                   item.quantity
+//                 }</td>
+//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
+//                   item.price || 0
+//                 ).toFixed(2)}</td>
+//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
+//                   item.totalAmount || 0
+//                 ).toFixed(2)}</td>
+//               </tr>
+//             `
+//               )
+//               .join("")}
+//           </tbody>
+//         </table>
+//         <h3>Price Summary</h3>
+//         <ul style="list-style: none; padding: 0;">
+//           <li><strong>Subtotal:</strong> $${parseFloat(subtotal).toFixed(
+//             2
+//           )}</li>
+//           ${
+//             discount > 0
+//               ? `<li><strong>Discount:</strong> $${parseFloat(discount).toFixed(
+//                   2
+//                 )}</li>`
+//               : ""
+//           }
+//           <li><strong>Tax (7%):</strong> $${parseFloat(tax).toFixed(2)}</li>
+//           <li><strong>Shipping:</strong> ${
+//             shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"
+//           }</li>
+//           <li><strong>Total:</strong> $${parseFloat(total).toFixed(2)}</li>
+//         </ul>
+//       </div>
+//     `;
+
+//     const userMailOptions = {
+//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//       to: userEmail,
+//       subject: `Order Submitted - ${orderId} (Pending Approval)`,
+//       html: `
+//         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+//           <h2>Thank You for Your Order, ${userFullName}!</h2>
+//           <p>Your order <strong>${orderId}</strong> has been submitted on ${new Date().toLocaleDateString()} and is currently <strong>pending admin approval</strong>.</p>
+//           <p><strong>Important:</strong></p>
+//           <ul>
+//             <li>This order cannot be edited or canceled after 24 hours.</li>
+//             <li>Please note: Your order will be considered accepted after 24 hours of placement.</li>
+//             <li>Shipping charges will be applied by the admin based on your location's shipping zone. You'll receive an updated order amount via email once finalized.</li>
+//           </ul>
+//           ${orderDetailsHtml}
+//         </div>
+//       `,
+//     };
+
+//     const adminMailOptions = {
+//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//       to: "sjingle@studiosignaturecabinets.com",
+//       subject: `New Order Pending Approval - ${orderId}`,
+//       html: `
+//         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+//           <h2>New Order Pending Approval: ${orderId}</h2>
+//           <p>A new order has been submitted by <strong>${userFullName}</strong> (${userEmail}) on ${new Date().toLocaleDateString()}.</p>
+//           <p><strong>Phone:</strong> ${userPhone}</p>
+//           ${orderDetailsHtml}
+//         </div>
+//       `,
+//     };
+
+//     try {
+//       await Promise.all([
+//         transporter.sendMail(userMailOptions),
+//         transporter.sendMail(adminMailOptions),
+//       ]);
+//     } catch (emailErr) {
+//       console.error("Email sending failed:", emailErr);
+//     }
+
+//     res.status(201).json({
+//       message: "Order submitted successfully and is pending admin approval",
+//       order_id: orderId,
+//     });
+//   } catch (err) {
+//     if (connection) {
+//       await connection.rollback();
+//       connection.release();
+//     }
+//     console.error("Transaction failed:", err);
+//     res.status(400).json({ error: err.message || "Error placing order" });
+//   } finally {
+//     if (connection) {
+//       connection.release();
+//     }
+//   }
+// });
+
+
 app.post("/api/orders", authenticateToken, async (req, res) => {
   const {
     doorStyle,
@@ -1068,7 +1423,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
 
       // Check available quantity in items table
       const [itemResult] = await connection.query(
-        "SELECT qty FROM items WHERE sku = ?",
+        "SELECT qty, item_type, color FROM items WHERE sku = ?",
         [item.sku]
       );
 
@@ -1081,6 +1436,13 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
         throw new Error(
           `Insufficient stock for SKU ${item.sku}. Available: ${availableQty}, Requested: ${item.quantity}`
         );
+      }
+
+      // Validate carcass items
+      if (item.sku.endsWith("-CAR")) {
+        if (itemResult[0].item_type !== "CARCASS" || itemResult[0].color !== "Carcass") {
+          throw new Error(`Item with SKU ${item.sku} is not a valid carcass item`);
+        }
       }
     }
 
@@ -1134,7 +1496,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
           item.price || null,
           item.totalAmount || null,
           doorStyle,
-          finishType,
+          item.sku.endsWith("-CAR") ? "CARCASS" : finishType,
         ]
       );
 
@@ -1148,8 +1510,85 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
     // Commit transaction
     await connection.commit();
 
-    // Email template
-    const orderDetailsHtml = `
+    // Filter items for user email (exclude carcass items)
+    const userItems = items.filter(item => !item.sku.endsWith("-CAR"));
+
+    // Email template for user (excludes carcass items)
+    const userOrderDetailsHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h3>Order Details</h3>
+        <ul style="list-style: none; padding: 0;">
+          <li><strong>Door Style:</strong> ${doorStyle}</li>
+          <li><strong>Finish Type:</strong> ${finishType}</li>
+          ${
+            stainOption
+              ? `<li><strong>Stain Option:</strong> ${stainOption}</li>`
+              : ""
+          }
+          ${
+            paintOption
+              ? `<li><strong>Paint Option:</strong> ${paintOption}</li>`
+              : ""
+          }
+          <li><strong>Ship To:</strong> ${account}</li>
+          <li><strong>Bill To:</strong> ${billTo}</li>
+          ${
+            designServicesPrice > 0
+              ? `<li><strong>Design Services:</strong> $${parseFloat(
+                  designServicesPrice
+                ).toFixed(2)}</li>`
+              : ""
+          }
+          ${
+            assemblyFlag === "Included"
+              ? `<li><strong>Assembly Services:</strong> Included</li>`
+              : ""
+          }
+        </ul>
+        <h3>Items</h3>
+        <table style="border-collapse: collapse; width: 100%;">
+          <thead>
+            <tr style="background-color: #f2f2f2;">
+              <th style="border: 1px solid #ddd; padding: 8px;">SKU</th>
+              <th style="border: 1px solid #ddd; padding: 8px;">Name</th>
+              <th style="border: 1px solid #ddd; padding: 8px;">Quantity</th>
+              <th style="border: 1px solid #ddd; padding: 8px;">Price ($)</th>
+              <th style="border: 1px solid #ddd; padding: 8px;">Total ($)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${userItems
+              .map(
+                (item) => `
+              <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">${item.sku}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.quantity}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(item.price || 0).toFixed(2)}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(item.totalAmount || 0).toFixed(2)}</td>
+              </tr>
+            `
+              )
+              .join("")}
+          </tbody>
+        </table>
+        <h3>Price Summary</h3>
+        <ul style="list-style: none; padding: 0;">
+          <li><strong>Subtotal:</strong> $${parseFloat(subtotal).toFixed(2)}</li>
+          ${
+            discount > 0
+              ? `<li><strong>Discount:</strong> $${parseFloat(discount).toFixed(2)}</li>`
+              : ""
+          }
+          <li><strong>Tax (7%):</strong> $${parseFloat(tax).toFixed(2)}</li>
+          <li><strong>Shipping:</strong> ${shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"}</li>
+          <li><strong>Total:</strong> $${parseFloat(total).toFixed(2)}</li>
+        </ul>
+      </div>
+    `;
+
+    // Email template for admin (includes all items)
+    const adminOrderDetailsHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h3>Order Details</h3>
         <ul style="list-style: none; padding: 0;">
@@ -1196,21 +1635,11 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
               .map(
                 (item) => `
               <tr>
-                <td style="border: 1px solid #ddd; padding: 8px;">${
-                  item.sku
-                }</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${
-                  item.name
-                }</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${
-                  item.quantity
-                }</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
-                  item.price || 0
-                ).toFixed(2)}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
-                  item.totalAmount || 0
-                ).toFixed(2)}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${item.sku}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.quantity}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(item.price || 0).toFixed(2)}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(item.totalAmount || 0).toFixed(2)}</td>
               </tr>
             `
               )
@@ -1219,20 +1648,14 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
         </table>
         <h3>Price Summary</h3>
         <ul style="list-style: none; padding: 0;">
-          <li><strong>Subtotal:</strong> $${parseFloat(subtotal).toFixed(
-            2
-          )}</li>
+          <li><strong>Subtotal:</strong> $${parseFloat(subtotal).toFixed(2)}</li>
           ${
             discount > 0
-              ? `<li><strong>Discount:</strong> $${parseFloat(discount).toFixed(
-                  2
-                )}</li>`
+              ? `<li><strong>Discount:</strong> $${parseFloat(discount).toFixed(2)}</li>`
               : ""
           }
           <li><strong>Tax (7%):</strong> $${parseFloat(tax).toFixed(2)}</li>
-          <li><strong>Shipping:</strong> ${
-            shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"
-          }</li>
+          <li><strong>Shipping:</strong> ${shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"}</li>
           <li><strong>Total:</strong> $${parseFloat(total).toFixed(2)}</li>
         </ul>
       </div>
@@ -1252,7 +1675,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
             <li>Please note: Your order will be considered accepted after 24 hours of placement.</li>
             <li>Shipping charges will be applied by the admin based on your location's shipping zone. You'll receive an updated order amount via email once finalized.</li>
           </ul>
-          ${orderDetailsHtml}
+          ${userOrderDetailsHtml}
         </div>
       `,
     };
@@ -1260,13 +1683,14 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
     const adminMailOptions = {
       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
       to: "sjingle@studiosignaturecabinets.com",
+
       subject: `New Order Pending Approval - ${orderId}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2>New Order Pending Approval: ${orderId}</h2>
           <p>A new order has been submitted by <strong>${userFullName}</strong> (${userEmail}) on ${new Date().toLocaleDateString()}.</p>
           <p><strong>Phone:</strong> ${userPhone}</p>
-          ${orderDetailsHtml}
+          ${adminOrderDetailsHtml}
         </div>
       `,
     };
@@ -1297,6 +1721,8 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
     }
   }
 });
+
+
 
 app.get("/api/orders", authenticateToken, async (req, res) => {
   try {
