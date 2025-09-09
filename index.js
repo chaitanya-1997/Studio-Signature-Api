@@ -4876,9 +4876,111 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
   }
 });
 
+// app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
+//   const orderId = req.params.id;
+//   try {
+//     const [orders] = await pool.query(
+//       `
+//       SELECT 
+//         o.id,
+//         o.order_id AS orderId,
+//         o.user_id,
+//         u.full_name AS userName,
+//         u.email AS userEmail,
+//         o.door_style AS doorStyle,
+//         o.finish_type AS finishType,
+//         o.stain_option AS stainOption,
+//         o.paint_option AS paintOption,
+//         o.account,
+//         o.bill_to AS billTo,
+//         o.subtotal,
+//         o.tax,
+//         o.shipping,
+//         o.discount,
+//         o.additional_discount,
+          
+//               o.design_services_price,
+//                 o.assembly_flag,
+//         o.total,
+//         o.status,
+//         o.created_at AS createdAt,
+//         GROUP_CONCAT(
+//           JSON_OBJECT(
+//             'sku', oi.sku,
+//             'name', oi.name,
+//             'quantity', oi.quantity,
+//             'price', oi.price,
+//             'totalAmount', oi.total_amount
+//           )
+//         ) AS items
+//       FROM orders o
+//       LEFT JOIN users u ON o.user_id = u.id
+//       LEFT JOIN order_items oi ON o.id = oi.order_id
+//       WHERE o.id = ?
+//       GROUP BY o.id
+//     `,
+//       [orderId]
+//     );
+
+//     if (orders.length === 0) {
+//       return res.status(404).json({ error: "Order not found" });
+//     }
+
+//     const order = orders[0];
+//     const additionalDiscountPercent =
+//       order.subtotal && order.additional_discount
+//         ? ((order.additional_discount / order.subtotal) * 100).toFixed(2)
+//         : "0.00";
+
+//     res.json({
+//       order: {
+//         id: order.id,
+//         orderId: order.orderId,
+//         userId: order.user_id,
+//         userName: order.userName || "Unknown User",
+//         userEmail: order.userEmail || "N/A",
+//         door_style: order.doorStyle,
+//         finish_type: order.finishType,
+//         stain_option: order.stainOption || "None",
+//         paint_option: order.paintOption || "None",
+//         account: order.account,
+//         bill_to: order.billTo,
+//         subtotal: parseFloat(order.subtotal || 0).toFixed(2),
+//         tax: parseFloat(order.tax || 0).toFixed(2),
+//         shipping: order.shipping ? parseFloat(order.shipping).toFixed(2) : null,
+//         discount: parseFloat(order.discount || 0).toFixed(2),
+//         design_services_price: parseFloat(
+//           order.design_services_price || 0
+//         ).toFixed(2),
+//         assembly_flag: order.assembly_flag,
+//         additional_discount: parseFloat(order.additional_discount || 0).toFixed(
+//           2
+//         ),
+//         additional_discount_percent: parseFloat(additionalDiscountPercent),
+//         total: parseFloat(order.total || 0).toFixed(2),
+//         status: order.status,
+//         created_at: order.createdAt
+//           ? new Date(order.createdAt).toISOString()
+//           : null,
+//         date: order.createdAt
+//           ? new Date(order.createdAt).toISOString().split("T")[0]
+//           : null,
+//         productLine: order.doorStyle.includes("Shaker")
+//           ? "Kitchen Shaker"
+//           : "Bath Shaker",
+//         items: order.items ? JSON.parse(`[${order.items}]`) : [],
+//       },
+//     });
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// });
+
 app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
   const orderId = req.params.id;
   try {
+    // Fetch order details
     const [orders] = await pool.query(
       `
       SELECT 
@@ -4898,26 +5000,14 @@ app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
         o.shipping,
         o.discount,
         o.additional_discount,
-          
-              o.design_services_price,
-                o.assembly_flag,
+        o.design_services_price,
+        o.assembly_flag,
         o.total,
         o.status,
-        o.created_at AS createdAt,
-        GROUP_CONCAT(
-          JSON_OBJECT(
-            'sku', oi.sku,
-            'name', oi.name,
-            'quantity', oi.quantity,
-            'price', oi.price,
-            'totalAmount', oi.total_amount
-          )
-        ) AS items
+        o.created_at AS createdAt
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
-      LEFT JOIN order_items oi ON o.id = oi.order_id
       WHERE o.id = ?
-      GROUP BY o.id
     `,
       [orderId]
     );
@@ -4927,6 +5017,22 @@ app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
     }
 
     const order = orders[0];
+
+    // Fetch order items separately
+    const [items] = await pool.query(
+      `
+      SELECT 
+        sku,
+        name,
+        quantity,
+        price,
+        total_amount AS totalAmount
+      FROM order_items
+      WHERE order_id = ?
+    `,
+      [orderId]
+    );
+
     const additionalDiscountPercent =
       order.subtotal && order.additional_discount
         ? ((order.additional_discount / order.subtotal) * 100).toFixed(2)
@@ -4953,9 +5059,7 @@ app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
           order.design_services_price || 0
         ).toFixed(2),
         assembly_flag: order.assembly_flag,
-        additional_discount: parseFloat(order.additional_discount || 0).toFixed(
-          2
-        ),
+        additional_discount: parseFloat(order.additional_discount || 0).toFixed(2),
         additional_discount_percent: parseFloat(additionalDiscountPercent),
         total: parseFloat(order.total || 0).toFixed(2),
         status: order.status,
@@ -4968,14 +5072,16 @@ app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
         productLine: order.doorStyle.includes("Shaker")
           ? "Kitchen Shaker"
           : "Bath Shaker",
-        items: order.items ? JSON.parse(`[${order.items}]`) : [],
+        items: items || [], // Directly use the queried items
       },
     });
   } catch (err) {
     console.error("Server error:", err);
+    console.error("Problematic order ID:", orderId);
     res.status(500).json({ error: "Server error" });
   }
 });
+
 
 app.post("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
   const { id } = req.params;
