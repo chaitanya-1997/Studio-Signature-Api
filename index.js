@@ -2839,6 +2839,251 @@ app.put("/api/orders/:id/cancel", authenticateToken, async (req, res) => {
   }
 });
 
+
+
+// Add these routes to your Express app, assuming you have 'app', 'pool', 'authenticateToken', and 'transporter' defined as in the original code.
+
+// POST /api/drafts - Save a new draft
+app.post("/api/drafts", authenticateToken, async (req, res) => {
+  const {
+    doorStyle,
+    finishType,
+    stainOption,
+    paintOption,
+    account,
+    billTo,
+    items,
+    designServicesPrice,
+    assemblyFlag,
+    subtotal,
+    tax,
+    shipping,
+    total,
+    discount,
+  } = req.body;
+
+  try {
+    // Basic validations (less strict than orders, since it's a draft)
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: "Items must be an array" });
+    }
+    if (!doorStyle || !finishType) {
+      return res.status(400).json({ error: "Door style and finish type are required" });
+    }
+    if (finishType === "Stained" && !stainOption) {
+      return res.status(400).json({ error: "Stain option is required for stained finish" });
+    }
+    if (finishType === "Painted" && !paintOption) {
+      return res.status(400).json({ error: "Paint option is required for painted finish" });
+    }
+    if (designServicesPrice < 0) {
+      return res.status(400).json({ error: "Design services price cannot be negative" });
+    }
+    if (!["Included", "Not Included"].includes(assemblyFlag)) {
+      return res.status(400).json({ error: "Assembly flag must be 'Included' or 'Not Included'" });
+    }
+
+    const userId = req.user.id;
+
+    // Optional: Recalculate subtotal, discount, etc., server-side for consistency
+    // But for drafts, store what frontend sends, even if partial
+    const [result] = await pool.query(
+      `INSERT INTO draft_orders (
+        user_id, door_style, finish_type, stain_option, paint_option, 
+        account, bill_to, design_services_price, assembly_flag, 
+        items, subtotal, tax, shipping, discount, total
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userId,
+        doorStyle,
+        finishType,
+        stainOption || null,
+        paintOption || null,
+        account || null,
+        billTo || null,
+        designServicesPrice || 0,
+        assemblyFlag,
+        JSON.stringify(items),  // Store as JSON
+        subtotal || null,
+        tax || null,
+        shipping !== undefined ? shipping : null,
+        discount || null,
+        total || null,
+      ]
+    );
+
+    res.status(201).json({
+      message: "Draft saved successfully",
+      draftId: result.insertId,
+    });
+  } catch (err) {
+    console.error('Error saving draft:', err);
+    res.status(500).json({ error: "Error saving draft" });
+  }
+});
+
+// GET /api/drafts - Fetch current user's drafts (no :userId needed, use token)
+app.get("/api/drafts", authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const [drafts] = await pool.query(
+      "SELECT * FROM draft_orders WHERE user_id = ? ORDER BY updated_at DESC",
+      [userId]
+    );
+
+    const parsedDrafts = drafts.map(draft => {
+      let items = [];
+      try {
+        items = typeof draft.items === "string" ? JSON.parse(draft.items) : draft.items;
+      } catch (err) {
+        console.error("Failed to parse draft items:", draft.id, draft.items);
+        items = [];
+      }
+      return { ...draft, items };
+    });
+
+    res.json(parsedDrafts);
+  } catch (err) {
+    console.error("Error fetching drafts:", err);
+    res.status(500).json({ error: "Error fetching drafts" });
+  }
+});
+
+
+app.get('/api/count', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const [result] = await pool.query(
+      'SELECT COUNT(*) as count FROM draft_orders WHERE user_id = ?',
+      [userId]
+    );
+    res.json({ count: result[0].count });
+  } catch (err) {
+    console.error('Error fetching draft count:', err);
+    res.status(500).json({ error: 'Error fetching draft count' });
+  }
+});
+
+
+// PUT /api/drafts/:id - Update a draft
+app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
+  const draftId = req.params.id;
+  const {
+    doorStyle,
+    finishType,
+    stainOption,
+    paintOption,
+    account,
+    billTo,
+    items,
+    designServicesPrice,
+    assemblyFlag,
+    subtotal,
+    tax,
+    shipping,
+    total,
+    discount,
+  } = req.body;
+
+  try {
+    const userId = req.user.id;
+
+    // Check ownership
+    const [draft] = await pool.query(
+      "SELECT user_id FROM draft_orders WHERE id = ?",
+      [draftId]
+    );
+    if (draft.length === 0 || draft[0].user_id !== userId) {
+      return res.status(403).json({ error: "Unauthorized or draft not found" });
+    }
+
+    // Basic validations (similar to POST)
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: "Items must be an array" });
+    }
+    if (!doorStyle || !finishType) {
+      return res.status(400).json({ error: "Door style and finish type are required" });
+    }
+    if (finishType === "Stained" && !stainOption) {
+      return res.status(400).json({ error: "Stain option is required for stained finish" });
+    }
+    if (finishType === "Painted" && !paintOption) {
+      return res.status(400).json({ error: "Paint option is required for painted finish" });
+    }
+    if (designServicesPrice < 0) {
+      return res.status(400).json({ error: "Design services price cannot be negative" });
+    }
+    if (!["Included", "Not Included"].includes(assemblyFlag)) {
+      return res.status(400).json({ error: "Assembly flag must be 'Included' or 'Not Included'" });
+    }
+
+    await pool.query(
+      `UPDATE draft_orders SET 
+        door_style = ?, finish_type = ?, stain_option = ?, paint_option = ?, 
+        account = ?, bill_to = ?, design_services_price = ?, assembly_flag = ?, 
+        items = ?, subtotal = ?, tax = ?, shipping = ?, discount = ?, total = ?,
+        updated_at = NOW()
+      WHERE id = ?`,
+      [
+        doorStyle,
+        finishType,
+        stainOption || null,
+        paintOption || null,
+        account || null,
+        billTo || null,
+        designServicesPrice || 0,
+        assemblyFlag,
+        JSON.stringify(items),
+        subtotal || null,
+        tax || null,
+        shipping !== undefined ? shipping : null,
+        discount || null,
+        total || null,
+        draftId,
+      ]
+    );
+
+    res.json({ message: "Draft updated successfully" });
+  } catch (err) {
+    console.error('Error updating draft:', err);
+    res.status(500).json({ error: "Error updating draft" });
+  }
+});
+
+// DELETE /api/drafts/:id - Delete a draft
+app.delete("/api/drafts/:id", authenticateToken, async (req, res) => {
+  const draftId = req.params.id;
+
+  try {
+    const userId = req.user.id;
+
+    // Check ownership
+    const [draft] = await pool.query(
+      "SELECT user_id FROM draft_orders WHERE id = ?",
+      [draftId]
+    );
+    if (draft.length === 0 || draft[0].user_id !== userId) {
+      return res.status(403).json({ error: "Unauthorized or draft not found" });
+    }
+
+    await pool.query("DELETE FROM draft_orders WHERE id = ?", [draftId]);
+    res.json({ message: "Draft deleted successfully" });
+  } catch (err) {
+    console.error('Error deleting draft:', err);
+    res.status(500).json({ error: "Error deleting draft" });
+  }
+});
+
+
+
+
+
+
+
+
+
 app.get("/api/items", authenticateToken, async (req, res) => {
   try {
     const { item_type, color, sku_prefix, sku } = req.query;
