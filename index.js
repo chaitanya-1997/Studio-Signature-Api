@@ -1840,7 +1840,9 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
     }
 
     // Validate total
-    const expectedTax = parseFloat((subtotal * 0.07).toFixed(2));
+    const taxcalc = parseFloat((subtotal - expectedDiscount).toFixed(2));
+    // const expectedTax = parseFloat((subtotal * 0.07).toFixed(2));
+    const expectedTax = parseFloat((taxcalc * 0.065).toFixed(2));
     const expectedTotal = parseFloat(
       (subtotal - expectedDiscount + expectedTax).toFixed(2)
     );
@@ -2029,7 +2031,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
               ? `<li><strong>Discount:</strong> $${parseFloat(discount).toFixed(2)}</li>`
               : ""
           }
-          <li><strong>Tax (7%):</strong> $${parseFloat(tax).toFixed(2)}</li>
+          <li><strong>Tax (6.5%):</strong> $${parseFloat(tax).toFixed(2)}</li>
           <li><strong>Shipping:</strong> ${shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"}</li>
           <li><strong>Total:</strong> $${parseFloat(total).toFixed(2)}</li>
         </ul>
