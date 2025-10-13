@@ -2173,10 +2173,103 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
   }
 });
 
+// app.get("/api/orders", authenticateToken, async (req, res) => {
+//   try {
+//     const userId = req.user.id;
+
+//     const [orders] = await pool.query(
+//       `SELECT 
+//           o.order_id AS id,
+//           o.created_at AS created_at,
+//           o.door_style,
+//           o.finish_type,
+//           o.stain_option,
+//           o.paint_option,
+//           o.account,
+//           o.bill_to,
+//           o.subtotal,
+//           o.tax,
+//           o.shipping,
+//           o.total,
+//           o.discount,
+//           o.additional_discount,
+//           o.design_services_price,
+//           o.assembly_flag,
+//           o.status,
+//           GROUP_CONCAT(
+//             JSON_OBJECT(
+//               'sku', oi.sku,
+//               'name', oi.name,
+//               'quantity', oi.quantity,
+//               'price', oi.price,
+//               'totalAmount', oi.total_amount
+//             )
+//           ) AS items
+//           FROM orders o
+//           LEFT JOIN order_items oi ON o.id = oi.order_id
+//           WHERE o.user_id = ?
+//           GROUP BY o.id
+//           ORDER BY o.created_at DESC`,
+//       [userId]
+//     );
+
+//     const formattedOrders = orders.map((order) => {
+//       console.log(`Order ${order.id}: created_at = ${order.created_at}`); // Debug log
+//       const additionalDiscountPercent =
+//         order.subtotal && order.additional_discount
+//           ? ((order.additional_discount / order.subtotal) * 100).toFixed(2)
+//           : "0.00";
+//       return {
+//         id: order.id,
+//         created_at: order.created_at
+//           ? new Date(order.created_at).toISOString()
+//           : null,
+//         date: order.created_at
+//           ? new Date(order.created_at).toISOString().split("T")[0]
+//           : null,
+//         productLine: order.door_style.includes("Shaker")
+//           ? "Kitchen Shaker"
+//           : "Bath Shaker",
+//         status: order.status,
+//         total: `$${parseFloat(order.total || 0).toFixed(2)}`,
+//         subtotal: parseFloat(order.subtotal || 0).toFixed(2),
+//         discount: parseFloat(order.discount || 0).toFixed(2),
+//         design_services_price: parseFloat(
+//           order.design_services_price || 0
+//         ).toFixed(2),
+//         assembly_flag: order.assembly_flag,
+//         additional_discount: parseFloat(order.additional_discount || 0).toFixed(
+//           2
+//         ),
+//         additional_discount_percent: parseFloat(additionalDiscountPercent),
+//         tax: parseFloat(order.tax || 0).toFixed(2),
+//         shipping:
+//           order.shipping !== null
+//             ? parseFloat(order.shipping).toFixed(2)
+//             : null,
+//         account: order.account,
+//         bill_to: order.bill_to,
+//         items: order.items ? JSON.parse(`[${order.items}]`) : [],
+//         door_style: order.door_style,
+//         finish_type: order.finish_type,
+//         stain_option: order.stain_option,
+//         paint_option: order.paint_option,
+//       };
+//     });
+
+//     res.json(formattedOrders);
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// });
+
+
 app.get("/api/orders", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
 
+    // ✅ Use JSON_ARRAYAGG instead of GROUP_CONCAT for proper JSON formatting
     const [orders] = await pool.query(
       `SELECT 
           o.order_id AS id,
@@ -2196,29 +2289,42 @@ app.get("/api/orders", authenticateToken, async (req, res) => {
           o.design_services_price,
           o.assembly_flag,
           o.status,
-          GROUP_CONCAT(
-            JSON_OBJECT(
-              'sku', oi.sku,
-              'name', oi.name,
-              'quantity', oi.quantity,
-              'price', oi.price,
-              'totalAmount', oi.total_amount
-            )
+          COALESCE(
+            JSON_ARRAYAGG(
+              JSON_OBJECT(
+                'sku', oi.sku,
+                'name', oi.name,
+                'quantity', oi.quantity,
+                'price', oi.price,
+                'totalAmount', oi.total_amount
+              )
+            ), 
+            JSON_ARRAY()
           ) AS items
-          FROM orders o
-          LEFT JOIN order_items oi ON o.id = oi.order_id
-          WHERE o.user_id = ?
-          GROUP BY o.id
-          ORDER BY o.created_at DESC`,
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      WHERE o.user_id = ?
+      GROUP BY o.id
+      ORDER BY o.created_at DESC`,
       [userId]
     );
 
+    // ✅ Format results safely
     const formattedOrders = orders.map((order) => {
-      console.log(`Order ${order.id}: created_at = ${order.created_at}`); // Debug log
+      let parsedItems = [];
+      try {
+        // items comes as a valid JSON array from MySQL (JSON_ARRAYAGG)
+        parsedItems = order.items ? JSON.parse(order.items) : [];
+      } catch (err) {
+        console.error(`⚠️ JSON parse failed for order ${order.id}:`, err);
+        parsedItems = [];
+      }
+
       const additionalDiscountPercent =
         order.subtotal && order.additional_discount
           ? ((order.additional_discount / order.subtotal) * 100).toFixed(2)
           : "0.00";
+
       return {
         id: order.id,
         created_at: order.created_at
@@ -2227,7 +2333,7 @@ app.get("/api/orders", authenticateToken, async (req, res) => {
         date: order.created_at
           ? new Date(order.created_at).toISOString().split("T")[0]
           : null,
-        productLine: order.door_style.includes("Shaker")
+        productLine: order.door_style?.includes("Shaker")
           ? "Kitchen Shaker"
           : "Bath Shaker",
         status: order.status,
@@ -2249,7 +2355,7 @@ app.get("/api/orders", authenticateToken, async (req, res) => {
             : null,
         account: order.account,
         bill_to: order.bill_to,
-        items: order.items ? JSON.parse(`[${order.items}]`) : [],
+        items: parsedItems,
         door_style: order.door_style,
         finish_type: order.finish_type,
         stain_option: order.stain_option,
@@ -2259,10 +2365,13 @@ app.get("/api/orders", authenticateToken, async (req, res) => {
 
     res.json(formattedOrders);
   } catch (err) {
-    console.error("Server error:", err);
+    console.error("❌ Server error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
+
+
+
 
 // Edit an order
 
