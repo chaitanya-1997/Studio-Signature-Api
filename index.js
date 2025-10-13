@@ -2265,15 +2265,15 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
 // });
 
 
+
 app.get("/api/orders", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // ✅ Use JSON_ARRAYAGG instead of GROUP_CONCAT for proper JSON formatting
     const [orders] = await pool.query(
       `SELECT 
           o.order_id AS id,
-          o.created_at AS created_at,
+          o.created_at,
           o.door_style,
           o.finish_type,
           o.stain_option,
@@ -2289,16 +2289,19 @@ app.get("/api/orders", authenticateToken, async (req, res) => {
           o.design_services_price,
           o.assembly_flag,
           o.status,
+          -- ✅ Use JSON_ARRAYAGG with COALESCE to ensure non-null array
           COALESCE(
-            JSON_ARRAYAGG(
-              JSON_OBJECT(
-                'sku', oi.sku,
-                'name', oi.name,
-                'quantity', oi.quantity,
-                'price', oi.price,
-                'totalAmount', oi.total_amount
-              )
-            ), 
+            CAST(
+              JSON_ARRAYAGG(
+                JSON_OBJECT(
+                  'sku', oi.sku,
+                  'name', oi.name,
+                  'quantity', oi.quantity,
+                  'price', oi.price,
+                  'totalAmount', oi.total_amount
+                )
+              ) AS JSON
+            ),
             JSON_ARRAY()
           ) AS items
       FROM orders o
@@ -2309,12 +2312,17 @@ app.get("/api/orders", authenticateToken, async (req, res) => {
       [userId]
     );
 
-    // ✅ Format results safely
     const formattedOrders = orders.map((order) => {
+      // ✅ handle both cases: JSON string or JS array
       let parsedItems = [];
       try {
-        // items comes as a valid JSON array from MySQL (JSON_ARRAYAGG)
-        parsedItems = order.items ? JSON.parse(order.items) : [];
+        if (typeof order.items === "string") {
+          parsedItems = JSON.parse(order.items);
+        } else if (Array.isArray(order.items)) {
+          parsedItems = order.items;
+        } else {
+          parsedItems = [];
+        }
       } catch (err) {
         console.error(`⚠️ JSON parse failed for order ${order.id}:`, err);
         parsedItems = [];
@@ -2355,7 +2363,7 @@ app.get("/api/orders", authenticateToken, async (req, res) => {
             : null,
         account: order.account,
         bill_to: order.bill_to,
-        items: parsedItems,
+        items: parsedItems, // ✅ items always populated now
         door_style: order.door_style,
         finish_type: order.finish_type,
         stain_option: order.stain_option,
@@ -2371,9 +2379,6 @@ app.get("/api/orders", authenticateToken, async (req, res) => {
 });
 
 
-
-
-// Edit an order
 
 app.put("/api/orders/:id", authenticateToken, async (req, res) => {
   const orderId = req.params.id;
