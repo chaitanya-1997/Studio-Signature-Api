@@ -3021,71 +3021,207 @@ app.get('/api/items/colors', authenticateToken, async (req, res) => {
 });
 
 
+// app.get("/api/specialitems", authenticateToken, async (req, res) => {
+//   try {
+//     const { item_type, color, sku_prefix, sku } = req.query;
+//     let query = "SELECT * FROM specialitems WHERE 1=1";
+//     const params = [];
+
+//     if (item_type) {
+//       query += " AND item_type = ?";
+//       params.push(item_type.toUpperCase());
+//     }
+
+//     if (color) {
+//       query += " AND color = ?";
+//       params.push(color);
+//     }
+
+//     if (sku_prefix) {
+//       query += " AND sku LIKE ?";
+//       params.push(`${sku_prefix}%`);
+//     }
+
+//     if (sku) {
+//       query += " AND sku = ?";
+//       params.push(sku);
+//     }
+
+//     const [rows] = await pool.query(query, params);
+//     res.json(rows);
+//   } catch (err) {
+//     console.error("Error fetching items:", err);
+//     res.status(500).json({ error: "Failed to fetch items" });
+//   }
+// });
+
+
+
+// // API to fetch unique item types
+
+
+// app.get('/api/specialitems/types', authenticateToken, async (req, res) => {
+//   try {
+//     const query = 'SELECT DISTINCT item_type FROM specialitems';
+//     const [rows] = await pool.query(query);
+//     const itemTypes = rows.map(row => row.item_type);
+//     res.json(itemTypes);
+//   } catch (err) {
+//     console.error('Error fetching item types:', err);
+//     res.status(500).json({ error: 'Failed to fetch item types' });
+//   }
+// });
+
+// // // API to fetch unique colors for a given item type
+// app.get('/api/specialitems/colors', authenticateToken, async (req, res) => {
+//   try {
+//     const { item_type } = req.query;
+//     if (!item_type) {
+//       return res.status(400).json({ error: 'item_type parameter is required' });
+//     }
+//     const query = 'SELECT DISTINCT color FROM specialitems WHERE item_type = ?';
+//     const [rows] = await pool.query(query, [item_type.toUpperCase()]);
+//     const colors = rows.map(row => row.color);
+//     res.json(colors);
+//   } catch (err) {
+//     console.error('Error fetching colors:', err);
+//     res.status(500).json({ error: 'Failed to fetch colors' });
+//   }
+// });
+
+
+
+
+// GET /api/specialitems - returns special items assigned to the authenticated customer
+
+
 app.get("/api/specialitems", authenticateToken, async (req, res) => {
   try {
+    const customerId = req.user?.id;
+    if (!customerId) {
+      return res.status(401).json({ error: "Unauthorized: user not identified" });
+    }
+
     const { item_type, color, sku_prefix, sku } = req.query;
-    let query = "SELECT * FROM specialitems WHERE 1=1";
-    const params = [];
+
+    // Use INNER JOIN so only specialitems assigned to the customer via
+    // customer_specialitem_prices are returned.
+    // Use COALESCE so price/qty fields are already resolved to customer values.
+    let query = `
+      SELECT
+        s.*,
+        COALESCE(p.price, s.price)     AS price,
+        COALESCE(p.qty, s.qty)         AS qty,
+        p.price                        AS cust_price,
+        p.qty                          AS cust_qty,
+        p.unitcost                     AS cust_unitcost,
+        p.specialitem_sku              AS specialitem_sku
+      FROM specialitems s
+      INNER JOIN customer_specialitem_prices p
+        ON p.specialitem_id = s.id
+        AND p.customer_id = ?
+      WHERE 1=1
+    `;
+    const params = [customerId];
 
     if (item_type) {
-      query += " AND item_type = ?";
-      params.push(item_type.toUpperCase());
+      // case-insensitive match
+      query += " AND UPPER(s.item_type) = UPPER(?)";
+      params.push(item_type);
     }
 
     if (color) {
-      query += " AND color = ?";
+      query += " AND UPPER(s.color) = UPPER(?)";
       params.push(color);
     }
 
     if (sku_prefix) {
-      query += " AND sku LIKE ?";
+      // case-insensitive LIKE
+      query += " AND UPPER(s.sku) LIKE UPPER(?)";
       params.push(`${sku_prefix}%`);
     }
 
     if (sku) {
-      query += " AND sku = ?";
+      query += " AND UPPER(s.sku) = UPPER(?)";
       params.push(sku);
     }
 
+    // Optional: add ORDER BY to keep results deterministic
+    query += " ORDER BY s.sku";
+
     const [rows] = await pool.query(query, params);
-    res.json(rows);
+
+    // Normalize numeric values
+    const normalized = rows.map((r) => ({
+      ...r,
+      price: r.price !== null ? parseFloat(r.price) : null,
+      qty: r.qty !== null ? (Number.isInteger(r.qty) ? parseInt(r.qty, 10) : parseFloat(r.qty)) : null,
+      cust_price: r.cust_price !== null ? parseFloat(r.cust_price) : null,
+      cust_qty: r.cust_qty !== null ? parseInt(r.cust_qty, 10) : null,
+      cust_unitcost: r.cust_unitcost !== null ? parseFloat(r.cust_unitcost) : null,
+    }));
+
+    res.json(normalized);
   } catch (err) {
-    console.error("Error fetching items:", err);
-    res.status(500).json({ error: "Failed to fetch items" });
+    console.error("Error fetching special items:", err);
+    res.status(500).json({ error: "Failed to fetch special items" });
   }
 });
 
-
-// API to fetch unique item types
+// GET /api/specialitems/types - unique item_type values for this customer's specialitems
 app.get('/api/specialitems/types', authenticateToken, async (req, res) => {
   try {
-    const query = 'SELECT DISTINCT item_type FROM specialitems';
-    const [rows] = await pool.query(query);
+    const customerId = req.user?.id;
+    if (!customerId) {
+      return res.status(401).json({ error: "Unauthorized: user not identified" });
+    }
+
+    // Use UPPER to group case-insensitively, but return original values (use MIN/ANY_VALUE)
+    const query = `
+      SELECT DISTINCT s.item_type
+      FROM specialitems s
+      INNER JOIN customer_specialitem_prices p
+        ON p.specialitem_id = s.id
+        AND p.customer_id = ?
+    `;
+    const [rows] = await pool.query(query, [customerId]);
     const itemTypes = rows.map(row => row.item_type);
     res.json(itemTypes);
   } catch (err) {
-    console.error('Error fetching item types:', err);
+    console.error('Error fetching special item types:', err);
     res.status(500).json({ error: 'Failed to fetch item types' });
   }
 });
 
-// API to fetch unique colors for a given item type
+// GET /api/specialitems/colors?item_type=... - unique colors for a given item_type for this customer
 app.get('/api/specialitems/colors', authenticateToken, async (req, res) => {
   try {
+    const customerId = req.user?.id;
+    if (!customerId) {
+      return res.status(401).json({ error: "Unauthorized: user not identified" });
+    }
+
     const { item_type } = req.query;
     if (!item_type) {
       return res.status(400).json({ error: 'item_type parameter is required' });
     }
-    const query = 'SELECT DISTINCT color FROM specialitems WHERE item_type = ?';
-    const [rows] = await pool.query(query, [item_type.toUpperCase()]);
+
+    const query = `
+      SELECT DISTINCT s.color
+      FROM specialitems s
+      INNER JOIN customer_specialitem_prices p
+        ON p.specialitem_id = s.id
+        AND p.customer_id = ?
+      WHERE UPPER(s.item_type) = UPPER(?)
+    `;
+    const [rows] = await pool.query(query, [customerId, item_type]);
     const colors = rows.map(row => row.color);
     res.json(colors);
   } catch (err) {
-    console.error('Error fetching colors:', err);
+    console.error('Error fetching special item colors:', err);
     res.status(500).json({ error: 'Failed to fetch colors' });
   }
 });
-
 
 
 
@@ -7748,6 +7884,301 @@ app.delete('/api/admin/allitems', authenticateToken, async (req, res) => {
   }
 });
 
+// app.post("/api/admin/import-specialitems",
+//   adminauthenticateToken,
+//   excelupload.single("file"),
+//   async (req, res) => {
+//     let connection;
+
+//     try {
+//       // Get database connection
+//       connection = await pool.getConnection();
+
+//       // Check if file was uploaded
+//       if (!req.file) {
+//         throw new Error("No Excel file was uploaded");
+//       }
+
+//       // Read Excel file from buffer
+//       const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+//       const sheet = workbook.Sheets[workbook.SheetNames[0]];
+//       const data = XLSX.utils.sheet_to_json(sheet);
+
+//       if (data.length === 0) {
+//         throw new Error("Excel file is empty or has no data rows");
+//       }
+
+//       console.log("Excel headers:", Object.keys(data[0]));
+
+//       let skippedRows = [];
+
+//       try {
+//         await connection.beginTransaction();
+
+//         for (const [index, item] of data.entries()) {
+//           // Normalize keys to lowercase and trim
+//           const itemKeys = Object.keys(item).reduce((acc, key) => {
+//             acc[key.toLowerCase()] =
+//               typeof item[key] === "string" ? item[key].trim() : item[key];
+//             return acc;
+//           }, {});
+
+//           // Map fields to database columns
+//           const sku = itemKeys["no"] ? String(itemKeys["no"]).trim() : null;
+//           const description = itemKeys["description"]
+//             ? String(itemKeys["description"]).trim()
+//             : null;
+//           const color = itemKeys["color"]
+//             ? String(itemKeys["color"]).trim()
+//             : null;
+//           const item_type = itemKeys["description 2"]
+//             ? String(itemKeys["description 2"]).trim()
+//             : "STAINED ITEMS";
+//           const search_description = itemKeys["item name"]
+//             ? String(itemKeys["item name"]).trim()
+//             : null;
+//           const unit_of_measure = itemKeys["base unit of measure"]
+//             ? String(itemKeys["base unit of measure"]).trim()
+//             : "Each";
+//           const price =
+//             itemKeys["unit price"] !== undefined
+//               ? parseFloat(itemKeys["unit price"])
+//               : null;
+//           const unitcost =
+//             itemKeys["unit cost"] !== undefined
+//               ? parseFloat(itemKeys["unit cost"])
+//               : "0.00";
+//           const qty =
+//             itemKeys["qty"] !== undefined ? parseFloat(itemKeys["qty"]) : 0;
+
+//           console.log(
+//             `Row ${
+//               index + 2
+//             }: SKU=${sku}, Description=${description}, Color=${color}, Item Type=${item_type}, Search Description=${search_description}, Unit of Measure=${unit_of_measure}, Price=${price}, Qty=${qty}`
+//           );
+
+//           if (!sku || !description) {
+//             skippedRows.push({
+//               row: index + 2,
+//               item,
+//               reason: `Missing SKU or Description`,
+//             });
+//             continue;
+//           }
+
+//           // Insert into items table
+//           await connection.query(
+//             `INSERT INTO specialitems (
+//             sku, description, item_type, search_description, unit_of_measure, price, color, qty,unitcost
+           
+//           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+//             [
+//               sku,
+//               description,
+//               item_type,
+//               search_description,
+//               unit_of_measure,
+//               price,
+//               color,
+//               qty,
+//               unitcost,
+             
+//             ]
+//           );
+//         }
+
+//         await connection.commit();
+
+//         res.json({
+//           message: "Data imported successfully",
+//           skippedRows,
+//         });
+//       } catch (err) {
+//         console.error("Error importing data:", err);
+//         if (connection) {
+//           await connection.rollback();
+//         }
+//         res
+//           .status(500)
+//           .json({ error: "Failed to import data", details: err.message });
+//       }
+//     } catch (error) {
+//       console.error("Error reading file or opening connection:", error.message);
+//       res.status(500).json({ error: error.message });
+//     } finally {
+//       if (connection) {
+//         connection.release();
+//       }
+//     }
+//   }
+// );
+
+
+// app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
+//   try {
+//     const { sku, item_type, color } = req.query;
+//     let query =
+//       "SELECT id, sku, description, item_type, search_description, unit_of_measure, price,  created_at, updated_at, color,qty,unitcost FROM specialitems WHERE 1=1";
+//     const params = [];
+
+//     if (sku) {
+//       query += " AND sku LIKE ?";
+//       params.push(`%${sku}%`);
+//     }
+//     if (item_type) {
+//       query += " AND item_type = ?";
+//       params.push(item_type.toUpperCase());
+//     }
+//     if (color) {
+//       query += " AND color = ?";
+//       params.push(color);
+//     }
+
+//     const [rows] = await pool.query(query, params);
+//     res.json(rows);
+//   } catch (err) {
+//     console.error("Error fetching items:", err);
+//     res.status(500).json({ error: "Failed to fetch items" });
+//   }
+// });
+
+
+// app.post("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
+//   try {
+//     const {
+//       sku,
+//       description,
+//       item_type,
+//       unit_of_measure,
+//       color,
+//       price,
+//       qty,
+//       unitcost, // Added unitcost
+//       search_description,
+     
+//     } = req.body;
+
+//     // Validate required fields
+//     if (
+//       !sku ||
+//       !description ||
+//       !item_type ||
+//       !unit_of_measure ||
+//       !color ||
+//       price == null ||
+//       qty == null ||
+//       unitcost == null // Added unitcost validation
+//     ) {
+//       return res.status(400).json({
+//         error:
+//           "Missing required fields: sku, description, item_type, unit_of_measure, color, price, qty, unitcost",
+//       });
+//     }
+
+//     const [result] = await pool.query(
+//       "INSERT INTO specialitems (sku, description, item_type, search_description, unit_of_measure, color, price, qty, unitcost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+//       [
+//         sku,
+//         description,
+//         item_type.toUpperCase(),
+//         search_description || null,
+//         unit_of_measure,
+//         color,
+//         price,
+//         qty,
+//         unitcost, // Added unitcost to query
+     
+//       ]
+//     );
+
+//     const [newItem] = await pool.query("SELECT * FROM specialitems WHERE id = ?", [
+//       result.insertId,
+//     ]);
+//     res.status(201).json(newItem[0]);
+//   } catch (err) {
+//     console.error("Error creating item:", err);
+//     res.status(500).json({ error: "Failed to create item" });
+//   }
+// });
+
+// app.delete("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const [result] = await pool.query("DELETE FROM specialitems WHERE id = ?", [id]);
+
+//     if (result.affectedRows === 0) {
+//       return res.status(404).json({ error: "Item not found" });
+//     }
+
+//     res.json({ message: "Item deleted successfully" });
+//   } catch (err) {
+//     console.error("Error deleting item:", err);
+//     res.status(500).json({ error: "Failed to delete item" });
+//   }
+// });
+
+
+// app.put("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const {
+//       sku,
+//       description,
+//       item_type,
+//       unit_of_measure,
+//       color,
+//       price,
+//       qty,
+//       unitcost,
+//     } = req.body;
+
+//     // Validate required fields
+//     if (
+//       !sku ||
+//       !description ||
+//       !item_type ||
+//       !unit_of_measure ||
+//       !color ||
+//       price == null ||
+//       qty == null ||
+//       unitcost == null // Added unitcost validation
+//     ) {
+//       return res.status(400).json({
+//         error:
+//           "Missing required fields: sku, description, item_type, unit_of_measure, color, price, qty, unitcost",
+//       });
+//     }
+
+//     const [result] = await pool.query(
+//       "UPDATE specialitems SET sku = ?, description = ?, item_type = ?, unit_of_measure = ?, color = ?, price = ?, qty = ?, unitcost = ?, updated_at = NOW() WHERE id = ?",
+//       [
+//         sku,
+//         description,
+//         item_type.toUpperCase(),
+//         unit_of_measure,
+//         color,
+//         price,
+//         qty,
+//         unitcost, // Added unitcost to query
+//         id,
+//       ]
+//     );
+
+//     if (result.affectedRows === 0) {
+//       return res.status(404).json({ error: "Item not found" });
+//     }
+
+//     res.json({ message: "Item updated successfully" });
+//   } catch (err) {
+//     console.error("Error updating item:", err);
+//     res.status(500).json({ error: "Failed to update item" });
+//   }
+// });
+
+
+
+
+
 app.post("/api/admin/import-specialitems",
   adminauthenticateToken,
   excelupload.single("file"),
@@ -7877,29 +8308,64 @@ app.post("/api/admin/import-specialitems",
   }
 );
 
-
+// Get special items with customer prices
 app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
   try {
-    const { sku, item_type, color } = req.query;
-    let query =
-      "SELECT id, sku, description, item_type, search_description, unit_of_measure, price,  created_at, updated_at, color,qty,unitcost FROM specialitems WHERE 1=1";
+    const { customerId } = req.query;
+    let query = `
+      SELECT 
+        si.id, si.sku, si.description, si.item_type, 
+        si.search_description, si.unit_of_measure, 
+        si.price as base_price, si.created_at, si.updated_at, 
+        si.color, si.qty, si.unitcost,
+        csip.price as customer_price,
+        csip.unitcost as customer_unitcost,
+        csip.customer_id
+      FROM specialitems si
+      LEFT JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
+      WHERE 1=1`;
+    
     const params = [];
 
-    if (sku) {
-      query += " AND sku LIKE ?";
-      params.push(`%${sku}%`);
-    }
-    if (item_type) {
-      query += " AND item_type = ?";
-      params.push(item_type.toUpperCase());
-    }
-    if (color) {
-      query += " AND color = ?";
-      params.push(color);
+    if (customerId) {
+      query += " AND csip.customer_id = ?";
+      params.push(customerId);
     }
 
     const [rows] = await pool.query(query, params);
-    res.json(rows);
+    
+    // Group by item and include customer prices
+    const itemsMap = new Map();
+    rows.forEach(row => {
+      if (!itemsMap.has(row.id)) {
+        itemsMap.set(row.id, {
+          id: row.id,
+          sku: row.sku,
+          description: row.description,
+          item_type: row.item_type,
+          search_description: row.search_description,
+          unit_of_measure: row.unit_of_measure,
+          price: row.base_price,
+          color: row.color,
+          qty: row.qty,
+          unitcost: row.unitcost,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          customer_prices: []
+        });
+      }
+      
+      if (row.customer_id) {
+        itemsMap.get(row.id).customer_prices.push({
+          customer_id: row.customer_id,
+          price: row.customer_price,
+          unitcost: row.customer_unitcost
+        });
+      }
+    });
+
+    const items = Array.from(itemsMap.values());
+    res.json(items);
   } catch (err) {
     console.error("Error fetching items:", err);
     res.status(500).json({ error: "Failed to fetch items" });
@@ -7907,6 +8373,7 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
 });
 
 
+// Create special item with customer prices - Only save in mapping table
 app.post("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
   try {
     const {
@@ -7917,74 +8384,200 @@ app.post("/api/admin/specialitems", adminauthenticateToken, async (req, res) => 
       color,
       price,
       qty,
-      unitcost, // Added unitcost
+      unitcost,
       search_description,
-     
+      customerPrices = []
     } = req.body;
 
     // Validate required fields
-    if (
-      !sku ||
-      !description ||
-      !item_type ||
-      !unit_of_measure ||
-      !color ||
-      price == null ||
-      qty == null ||
-      unitcost == null // Added unitcost validation
-    ) {
+    if (!sku || !description || !item_type || !unit_of_measure || !color) {
       return res.status(400).json({
-        error:
-          "Missing required fields: sku, description, item_type, unit_of_measure, color, price, qty, unitcost",
+        error: "Missing required fields.",
       });
     }
 
-    const [result] = await pool.query(
-      "INSERT INTO specialitems (sku, description, item_type, search_description, unit_of_measure, color, price, qty, unitcost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        sku,
-        description,
-        item_type.toUpperCase(),
-        search_description || null,
-        unit_of_measure,
-        color,
-        price,
-        qty,
-        unitcost, // Added unitcost to query
-     
-      ]
-    );
+    // Start transaction
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
 
-    const [newItem] = await pool.query("SELECT * FROM specialitems WHERE id = ?", [
-      result.insertId,
-    ]);
-    res.status(201).json(newItem[0]);
+    try {
+      // Insert into specialitems without price, qty, unitcost
+      const [result] = await connection.query(
+        `INSERT INTO specialitems 
+         (sku, description, item_type, search_description, unit_of_measure, color) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          sku,
+          description,
+          item_type.toUpperCase(),
+          search_description || null,
+          unit_of_measure,
+          color,
+        ]
+      );
+
+      const newItemId = result.insertId;
+
+      // Insert customer-price mappings if provided - This is where prices are saved
+      if (Array.isArray(customerPrices) && customerPrices.length > 0) {
+        const customerIdsToUpdate = new Set(); // Track unique customer IDs
+        
+        for (const cp of customerPrices) {
+          // Validate that customer exists before inserting
+          const [customerExists] = await connection.query(
+            "SELECT id, special_cust FROM users WHERE id = ?",
+            [cp.customerId]
+          );
+          
+          if (customerExists.length === 0) {
+            await connection.rollback();
+            return res.status(400).json({
+              error: `Customer with ID ${cp.customerId} does not exist.`
+            });
+          }
+
+          // Add customer ID to update set
+          customerIdsToUpdate.add(cp.customerId);
+
+          await connection.query(
+            `INSERT INTO customer_specialitem_prices 
+             (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+            [
+              cp.customerId, 
+              newItemId, 
+              cp.price || 0, 
+              cp.unitcost || 0,
+              cp.qty || 0 // Use cp.qty from customerPrices
+            ]
+          );
+        }
+
+        // Update special_cust flag for customers (only if currently 0)
+        if (customerIdsToUpdate.size > 0) {
+          const customerIdsArray = Array.from(customerIdsToUpdate);
+          await connection.query(
+            `UPDATE users SET special_cust = 1, updated_at = NOW() 
+             WHERE id IN (?) AND special_cust = 0`,
+            [customerIdsArray]
+          );
+        }
+      } else {
+        // If no customer prices provided, just create the item without any price mappings
+        console.log("No customer prices provided, creating item without price mappings");
+      }
+
+      await connection.commit();
+
+      // Fetch complete item data with customer prices
+      const [newItemRows] = await pool.query(`
+        SELECT 
+          si.*,
+          JSON_ARRAYAGG(
+            JSON_OBJECT(
+              'customer_id', csip.customer_id,
+              'price', csip.price,
+              'unitcost', csip.unitcost,
+              'qty', csip.qty
+            )
+          ) as customer_prices
+        FROM specialitems si
+        LEFT JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
+        WHERE si.id = ?
+        GROUP BY si.id
+      `, [newItemId]);
+
+      res.status(201).json({ 
+        item: {
+          ...newItemRows[0],
+          customer_prices: newItemRows[0].customer_prices ? newItemRows[0].customer_prices.filter(cp => cp.customer_id) : []
+        }
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   } catch (err) {
     console.error("Error creating item:", err);
     res.status(500).json({ error: "Failed to create item" });
   }
 });
 
-app.delete("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const [result] = await pool.query("DELETE FROM specialitems WHERE id = ?", [id]);
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Item not found" });
+
+
+
+// Get special items with customer prices
+app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
+  try {
+    const { customerId } = req.query;
+    let query = `
+      SELECT 
+        si.id, si.sku, si.description, si.item_type, 
+        si.search_description, si.unit_of_measure, 
+        si.price as base_price, si.created_at, si.updated_at, 
+        si.color, si.qty, si.unitcost,
+        csip.price as customer_price,
+        csip.unitcost as customer_unitcost,
+        csip.customer_id
+      FROM specialitems si
+      LEFT JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
+      WHERE 1=1`;
+    
+    const params = [];
+
+    if (customerId) {
+      query += " AND csip.customer_id = ?";
+      params.push(customerId);
     }
 
-    res.json({ message: "Item deleted successfully" });
+    const [rows] = await pool.query(query, params);
+    
+    // Group by item and include customer prices
+    const itemsMap = new Map();
+    rows.forEach(row => {
+      if (!itemsMap.has(row.id)) {
+        itemsMap.set(row.id, {
+          id: row.id,
+          sku: row.sku,
+          description: row.description,
+          item_type: row.item_type,
+          search_description: row.search_description,
+          unit_of_measure: row.unit_of_measure,
+          price: row.base_price,
+          color: row.color,
+          qty: row.qty,
+          unitcost: row.unitcost,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          customer_prices: []
+        });
+      }
+      
+      if (row.customer_id) {
+        itemsMap.get(row.id).customer_prices.push({
+          customer_id: row.customer_id,
+          price: row.customer_price,
+          unitcost: row.customer_unitcost
+        });
+      }
+    });
+
+    const items = Array.from(itemsMap.values());
+    res.json(items);
   } catch (err) {
-    console.error("Error deleting item:", err);
-    res.status(500).json({ error: "Failed to delete item" });
+    console.error("Error fetching items:", err);
+    res.status(500).json({ error: "Failed to fetch items" });
   }
 });
 
 
-app.put("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) => {
+// Create special item with customer prices - Only save in mapping table
+app.post("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
   try {
-    const { id } = req.params;
     const {
       sku,
       description,
@@ -7994,50 +8587,574 @@ app.put("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) 
       price,
       qty,
       unitcost,
+      search_description,
+      customerPrices = []
     } = req.body;
 
     // Validate required fields
-    if (
-      !sku ||
-      !description ||
-      !item_type ||
-      !unit_of_measure ||
-      !color ||
-      price == null ||
-      qty == null ||
-      unitcost == null // Added unitcost validation
-    ) {
+    if (!sku || !description || !item_type || !unit_of_measure || !color) {
       return res.status(400).json({
-        error:
-          "Missing required fields: sku, description, item_type, unit_of_measure, color, price, qty, unitcost",
+        error: "Missing required fields.",
       });
     }
 
+    // Start transaction
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      // Insert into specialitems without price, qty, unitcost
+      const [result] = await connection.query(
+        `INSERT INTO specialitems 
+         (sku, description, item_type, search_description, unit_of_measure, color) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          sku,
+          description,
+          item_type.toUpperCase(),
+          search_description || null,
+          unit_of_measure,
+          color,
+        ]
+      );
+
+      const newItemId = result.insertId;
+
+      // Insert customer-price mappings if provided - This is where prices are saved
+      if (Array.isArray(customerPrices) && customerPrices.length > 0) {
+        const customerIdsToUpdate = new Set(); // Track unique customer IDs
+        
+        for (const cp of customerPrices) {
+          // Validate that customer exists before inserting
+          const [customerExists] = await connection.query(
+            "SELECT id, special_cust FROM users WHERE id = ?",
+            [cp.customerId]
+          );
+          
+          if (customerExists.length === 0) {
+            await connection.rollback();
+            return res.status(400).json({
+              error: `Customer with ID ${cp.customerId} does not exist.`
+            });
+          }
+
+          // Add customer ID to update set
+          customerIdsToUpdate.add(cp.customerId);
+
+          await connection.query(
+            `INSERT INTO customer_specialitem_prices 
+             (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+            [
+              cp.customerId, 
+              newItemId, 
+              cp.price || 0, 
+              cp.unitcost || 0,
+              cp.qty || 0 // Use cp.qty from customerPrices
+            ]
+          );
+        }
+
+        // Update special_cust flag for customers (only if currently 0)
+        if (customerIdsToUpdate.size > 0) {
+          const customerIdsArray = Array.from(customerIdsToUpdate);
+          await connection.query(
+            `UPDATE users SET special_cust = 1, updated_at = NOW() 
+             WHERE id IN (?) AND special_cust = 0`,
+            [customerIdsArray]
+          );
+        }
+      } else {
+        // If no customer prices provided, just create the item without any price mappings
+        console.log("No customer prices provided, creating item without price mappings");
+      }
+
+      await connection.commit();
+
+      // Fetch complete item data with customer prices
+      const [newItemRows] = await pool.query(`
+        SELECT 
+          si.*,
+          JSON_ARRAYAGG(
+            JSON_OBJECT(
+              'customer_id', csip.customer_id,
+              'price', csip.price,
+              'unitcost', csip.unitcost,
+              'qty', csip.qty
+            )
+          ) as customer_prices
+        FROM specialitems si
+        LEFT JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
+        WHERE si.id = ?
+        GROUP BY si.id
+      `, [newItemId]);
+
+      res.status(201).json({ 
+        item: {
+          ...newItemRows[0],
+          customer_prices: newItemRows[0].customer_prices ? newItemRows[0].customer_prices.filter(cp => cp.customer_id) : []
+        }
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (err) {
+    console.error("Error creating item:", err);
+    res.status(500).json({ error: "Failed to create item" });
+  }
+});
+
+
+// Update special item - Prices only in mapping table
+app.put("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const {
+      sku,
+      description,
+      item_type,
+      unit_of_measure,
+      color,
+      price,
+      qty,
+      unitcost,
+      customerPrices = [],
+      search_description,
+    } = req.body;
+
+    // Validate required fields
+    if (!sku || !description || !item_type || !unit_of_measure || !color) {
+      return res.status(400).json({
+        error: "Missing required fields.",
+      });
+    }
+
+    // Start transaction
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      // Update specialitems record WITHOUT price, qty, unitcost
+      const [result] = await connection.query(
+        `UPDATE specialitems 
+         SET sku=?, description=?, item_type=?, unit_of_measure=?, color=?, 
+             search_description=?, updated_at=NOW()
+         WHERE id=?`,
+        [
+          sku, 
+          description, 
+          item_type.toUpperCase(), 
+          unit_of_measure, 
+          color, 
+          search_description, 
+          id
+        ]
+      );
+
+      if (result.affectedRows === 0) {
+        await connection.rollback();
+        return res.status(404).json({ error: "Item not found" });
+      }
+
+      // Handle customer-specific prices
+      if (Array.isArray(customerPrices) && customerPrices.length > 0) {
+        console.log(`Updating ${customerPrices.length} specific customer price mappings for item ${id}`);
+        
+        // Update ONLY the specified customer mappings
+        for (const cp of customerPrices) {
+          // Validate that customer exists
+          const [customerCheck] = await connection.query(
+            "SELECT id FROM users WHERE id = ? AND user_type = 'customer'",
+            [cp.customerId]
+          );
+
+          if (customerCheck.length > 0) {
+            await connection.query(
+              `INSERT INTO customer_specialitem_prices 
+               (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+               ON DUPLICATE KEY UPDATE 
+               price=VALUES(price), unitcost=VALUES(unitcost), qty=VALUES(qty), updated_at=NOW()`,
+              [
+                cp.customerId, 
+                id, 
+                parseFloat(cp.price) || 0, 
+                parseFloat(cp.unitcost) || 0,
+                parseFloat(cp.qty) || 0
+              ]
+            );
+            console.log(`Updated price for customer ${cp.customerId}, item ${id}`);
+          } else {
+            console.warn(`Skipping invalid customer ID: ${cp.customerId}`);
+          }
+        }
+      } else {
+        // If no customerPrices provided, DO NOT update any customer mappings
+        // Only update the main item details
+        console.log(`No customer prices provided, only updating main item details for item ${id}`);
+      }
+
+      await connection.commit();
+      res.json({ message: "Item updated successfully" });
+
+    } catch (error) {
+      await connection.rollback();
+      console.error("Transaction error:", error);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (err) {
+    console.error("Error updating item:", err);
+    res.status(500).json({ error: "Failed to update item: " + err.message });
+  }
+});
+// Get special items with customer prices
+app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
+  try {
+    const { customerId } = req.query;
+    
+    let query;
+    let params = [];
+
+    if (customerId) {
+      // Get items with customer-specific prices from mapping table
+      query = `
+        SELECT 
+          si.id, si.sku, si.description, si.item_type, 
+          si.search_description, si.unit_of_measure, 
+          si.color, si.created_at, si.updated_at,
+          csip.price,
+          csip.unitcost,
+          csip.qty,
+          csip.customer_id
+        FROM specialitems si
+        INNER JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
+        WHERE csip.customer_id = ?
+        ORDER BY si.sku
+      `;
+      params = [customerId];
+    } else {
+      // Get all items with their customer prices
+      query = `
+        SELECT 
+          si.id, si.sku, si.description, si.item_type, 
+          si.search_description, si.unit_of_measure, 
+          si.color, si.created_at, si.updated_at,
+          JSON_ARRAYAGG(
+            JSON_OBJECT(
+              'customer_id', csip.customer_id,
+              'price', csip.price,
+              'unitcost', csip.unitcost,
+              'qty', csip.qty
+            )
+          ) as customer_prices
+        FROM specialitems si
+        LEFT JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
+        GROUP BY si.id
+        ORDER BY si.sku
+      `;
+    }
+
+    const [rows] = await pool.query(query, params);
+    res.json(rows);
+    
+  } catch (err) {
+    console.error("Error fetching items:", err);
+    res.status(500).json({ 
+      error: "Failed to fetch items",
+      details: err.message 
+    });
+  }
+});
+
+// Get items for specific customer
+app.get("/api/admin/customer/:customerId/specialitems", adminauthenticateToken, async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    
+    const [rows] = await pool.query(`
+      SELECT 
+        si.id, si.sku, si.description, si.item_type, 
+        si.unit_of_measure, si.color, 
+        csip.price,
+        csip.qty,
+        csip.unitcost,
+        si.created_at, si.updated_at
+      FROM specialitems si
+      INNER JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
+      WHERE csip.customer_id = ?
+      ORDER BY si.sku
+    `, [customerId]);
+
+    res.json(rows);
+  } catch (err) {
+    console.error("Error fetching customer items:", err);
+    res.status(500).json({ error: "Failed to fetch customer items" });
+  }
+});
+// Bulk import customer-item prices
+app.post("/api/admin/customer-specialitem-prices/bulk", adminauthenticateToken, async (req, res) => {
+  try {
+    const { customerIds, items } = req.body;
+
+    // ENHANCED DEBUGGING
+    console.log("=== BACKEND: BULK IMPORT REQUEST ===");
+    console.log("Customer IDs:", customerIds);
+    console.log("Number of items:", items.length);
+    
+    // Log ALL items with their prices
+    console.log("ALL ITEMS WITH PRICES:");
+    items.forEach((item, index) => {
+      console.log(`Item ${index}: ${item.sku} | Price: ${item.price} | UnitCost: ${item.unitcost}`);
+    });
+
+    if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
+      return res.status(400).json({ error: "Customer IDs are required" });
+    }
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: "Items are required" });
+    }
+
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      const allCustomerIdsToUpdate = new Set(customerIds);
+
+      for (const itemData of items) {
+        const { sku, description, item_type, unit_of_measure, color, price, qty, unitcost } = itemData;
+
+        // BACKEND DEBUG: Log each item being processed
+        console.log(`BACKEND Processing: ${sku}`, {
+          price: price,
+          unitcost: unitcost,
+          qty: qty
+        });
+
+        // Check if item exists
+        let [existingItems] = await connection.query(
+          "SELECT id FROM specialitems WHERE sku = ?",
+          [sku]
+        );
+
+        let specialItemId;
+        if (existingItems.length > 0) {
+          specialItemId = existingItems[0].id;
+          console.log(`Using existing item ID ${specialItemId} for SKU: ${sku}`);
+        } else {
+          const [insertResult] = await connection.query(
+            `INSERT INTO specialitems 
+             (sku, description, item_type, unit_of_measure, color, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+            [sku, description, item_type, unit_of_measure, color]
+          );
+          specialItemId = insertResult.insertId;
+          console.log(`Created new item ID ${specialItemId} for SKU: ${sku}`);
+        }
+
+        // Create/update customer price mappings
+        for (const customerId of customerIds) {
+          console.log(`BACKEND Setting prices for customer ${customerId}, item ${specialItemId}:`, {
+            price: price,
+            unitcost: unitcost,
+            qty: qty
+          });
+
+          await connection.query(
+            `INSERT INTO customer_specialitem_prices 
+             (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE 
+             price=VALUES(price), unitcost=VALUES(unitcost), qty=VALUES(qty), updated_at=NOW()`,
+            [customerId, specialItemId, price || 0, unitcost || 0, qty || 0]
+          );
+        }
+      }
+
+      // Update special_cust flag
+      if (allCustomerIdsToUpdate.size > 0) {
+        const customerIdsArray = Array.from(allCustomerIdsToUpdate);
+        await connection.query(
+          `UPDATE users SET special_cust = 1, updated_at = NOW() 
+           WHERE id IN (?) AND special_cust = 0`,
+          [customerIdsArray]
+        );
+      }
+
+      await connection.commit();
+      res.json({ 
+        message: "Bulk import completed successfully",
+        details: {
+          customersProcessed: customerIds.length,
+          itemsProcessed: items.length,
+          totalMappings: customerIds.length * items.length
+        }
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      console.error("Transaction error in bulk import:", error);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (err) {
+    console.error("Bulk import error:", err);
+    res.status(500).json({ error: "Failed to import data: " + err.message });
+  }
+});
+// Delete all mappings for a specific customer - Update special_cust flag to 0
+app.delete("/api/admin/customer-specialitem-prices/all", adminauthenticateToken, async (req, res) => {
+  try {
+    const { customerId } = req.query;
+
+    if (!customerId) {
+      return res.status(400).json({ error: "Customer ID is required" });
+    }
+
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      // First delete all customer price mappings
+      const [result] = await connection.query(
+        "DELETE FROM customer_specialitem_prices WHERE customer_id = ?",
+        [customerId]
+      );
+
+      // Update special_cust flag to 0 in users table since all mappings are deleted
+      await connection.query(
+        "UPDATE users SET special_cust = 0, updated_at = NOW() WHERE id = ?",
+        [customerId]
+      );
+
+      await connection.commit();
+      
+      res.json({ 
+        message: `Deleted ${result.affectedRows} price mappings for customer ${customerId} and updated special_cust flag to 0`,
+        deletedCount: result.affectedRows,
+        specialCustUpdated: true
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (err) {
+    console.error("Error deleting customer price mappings:", err);
+    res.status(500).json({ error: "Failed to delete customer price mappings" });
+  }
+});
+
+// Delete specific customer price mapping - DO NOT update special_cust flag
+app.delete("/api/admin/customer-specialitem-prices", adminauthenticateToken, async (req, res) => {
+  try {
+    const { customerId, specialitemId } = req.query;
+
+    if (!customerId || !specialitemId) {
+      return res.status(400).json({ error: "Customer ID and Item ID are required" });
+    }
+
     const [result] = await pool.query(
-      "UPDATE specialitems SET sku = ?, description = ?, item_type = ?, unit_of_measure = ?, color = ?, price = ?, qty = ?, unitcost = ?, updated_at = NOW() WHERE id = ?",
-      [
-        sku,
-        description,
-        item_type.toUpperCase(),
-        unit_of_measure,
-        color,
-        price,
-        qty,
-        unitcost, // Added unitcost to query
-        id,
-      ]
+      "DELETE FROM customer_specialitem_prices WHERE customer_id = ? AND specialitem_id = ?",
+      [customerId, specialitemId]
     );
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Item not found" });
+      return res.status(404).json({ error: "Customer price mapping not found" });
     }
 
-    res.json({ message: "Item updated successfully" });
+    res.json({ 
+      message: "Customer price mapping deleted successfully",
+      specialCustUpdated: false // Explicitly state no flag update
+    });
   } catch (err) {
-    console.error("Error updating item:", err);
-    res.status(500).json({ error: "Failed to update item" });
+    console.error("Error deleting customer price:", err);
+    res.status(500).json({ error: "Failed to delete customer price" });
   }
 });
+
+// Delete special item and all its mappings - Check and update special_cust flags if needed
+app.delete("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      // First get all customer IDs that have mappings for this item
+      const [customerMappings] = await connection.query(
+        "SELECT DISTINCT customer_id FROM customer_specialitem_prices WHERE specialitem_id = ?",
+        [id]
+      );
+
+      // Then delete customer price mappings
+      const [mappingResult] = await connection.query(
+        "DELETE FROM customer_specialitem_prices WHERE specialitem_id = ?",
+        [id]
+      );
+
+      // Then delete the item
+      const [itemResult] = await connection.query(
+        "DELETE FROM specialitems WHERE id = ?",
+        [id]
+      );
+
+      if (itemResult.affectedRows === 0) {
+        await connection.rollback();
+        return res.status(404).json({ error: "Item not found" });
+      }
+
+      // For each customer that had mappings for this item, check if they have any remaining mappings
+      // If no remaining mappings, set special_cust = 0
+      let specialCustUpdates = 0;
+      for (const mapping of customerMappings) {
+        const [remainingMappings] = await connection.query(
+          "SELECT COUNT(*) as count FROM customer_specialitem_prices WHERE customer_id = ?",
+          [mapping.customer_id]
+        );
+        
+        if (remainingMappings[0].count === 0) {
+          // No more mappings for this customer, update special_cust to 0
+          await connection.query(
+            "UPDATE users SET special_cust = 0, updated_at = NOW() WHERE id = ?",
+            [mapping.customer_id]
+          );
+          specialCustUpdates++;
+        }
+      }
+
+      await connection.commit();
+      res.json({ 
+        message: "Item and all customer mappings deleted successfully",
+        mappingsDeleted: mappingResult.affectedRows,
+        specialCustUpdates: specialCustUpdates
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (err) {
+    console.error("Error deleting item:", err);
+    res.status(500).json({ error: "Failed to delete item" });
+  }
+});
+
+
+
+
 
 
 app.post(
