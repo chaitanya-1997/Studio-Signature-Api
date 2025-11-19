@@ -6005,6 +6005,27 @@ app.put(
   }
 );
 
+async function generateInvoiceNumbers(connection) {
+  // Get last invoice number (only digits)
+  const [rows] = await connection.query(
+    `SELECT invoice_number 
+     FROM invoices 
+     WHERE invoice_number REGEXP '^[0-9]+$'
+     ORDER BY CAST(invoice_number AS UNSIGNED) DESC 
+     LIMIT 1`
+  );
+
+  let nextNumber = 100001;
+
+  if (rows.length > 0) {
+    const last = parseInt(rows[0].invoice_number, 10);
+    if (!isNaN(last) && last >= 100001) {
+      nextNumber = last + 1;
+    }
+  }
+
+  return String(nextNumber);
+}
 
 
 app.put("/api/admin/orders/:id/status",
@@ -6109,7 +6130,9 @@ app.put("/api/admin/orders/:id/status",
       // Generate invoice if status is Completed
       let invoiceNumber = null;
       if (status === "Completed") {
-        invoiceNumber = `INV-${order.order_id}-${Date.now()}`;
+        // invoiceNumber = `INV-${order.order_id}-${Date.now()}`;
+        invoiceNumber = await generateInvoiceNumbers(connection);
+
         await connection.query(
           `INSERT INTO invoices (invoice_number, order_id, user_id, subtotal, tax, shipping, discount, additional_discount, total)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
