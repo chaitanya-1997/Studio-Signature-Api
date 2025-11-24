@@ -3021,74 +3021,6 @@ app.get('/api/items/colors', authenticateToken, async (req, res) => {
 });
 
 
-// app.get("/api/specialitems", authenticateToken, async (req, res) => {
-//   try {
-//     const { item_type, color, sku_prefix, sku } = req.query;
-//     let query = "SELECT * FROM specialitems WHERE 1=1";
-//     const params = [];
-
-//     if (item_type) {
-//       query += " AND item_type = ?";
-//       params.push(item_type.toUpperCase());
-//     }
-
-//     if (color) {
-//       query += " AND color = ?";
-//       params.push(color);
-//     }
-
-//     if (sku_prefix) {
-//       query += " AND sku LIKE ?";
-//       params.push(`${sku_prefix}%`);
-//     }
-
-//     if (sku) {
-//       query += " AND sku = ?";
-//       params.push(sku);
-//     }
-
-//     const [rows] = await pool.query(query, params);
-//     res.json(rows);
-//   } catch (err) {
-//     console.error("Error fetching items:", err);
-//     res.status(500).json({ error: "Failed to fetch items" });
-//   }
-// });
-
-
-
-// // API to fetch unique item types
-
-
-// app.get('/api/specialitems/types', authenticateToken, async (req, res) => {
-//   try {
-//     const query = 'SELECT DISTINCT item_type FROM specialitems';
-//     const [rows] = await pool.query(query);
-//     const itemTypes = rows.map(row => row.item_type);
-//     res.json(itemTypes);
-//   } catch (err) {
-//     console.error('Error fetching item types:', err);
-//     res.status(500).json({ error: 'Failed to fetch item types' });
-//   }
-// });
-
-// // // API to fetch unique colors for a given item type
-// app.get('/api/specialitems/colors', authenticateToken, async (req, res) => {
-//   try {
-//     const { item_type } = req.query;
-//     if (!item_type) {
-//       return res.status(400).json({ error: 'item_type parameter is required' });
-//     }
-//     const query = 'SELECT DISTINCT color FROM specialitems WHERE item_type = ?';
-//     const [rows] = await pool.query(query, [item_type.toUpperCase()]);
-//     const colors = rows.map(row => row.color);
-//     res.json(colors);
-//   } catch (err) {
-//     console.error('Error fetching colors:', err);
-//     res.status(500).json({ error: 'Failed to fetch colors' });
-//   }
-// });
-
 
 
 
@@ -7442,6 +7374,10 @@ app.get("/api/admin/items", adminauthenticateToken, async (req, res) => {
 
 app.post("/api/admin/items", adminauthenticateToken, async (req, res) => {
   try {
+
+     console.log("Headers:", req.headers);
+    console.log("Raw body:", req.body);
+
     const {
       sku,
       description,
@@ -7459,7 +7395,7 @@ app.post("/api/admin/items", adminauthenticateToken, async (req, res) => {
       se,
       sw,
     } = req.body;
-
+console.log("Destructured values:", { sku, description, item_type, unit_of_measure, color, price, qty, unitcost });
     // Validate required fields
     if (
       !sku ||
@@ -7508,54 +7444,6 @@ app.post("/api/admin/items", adminauthenticateToken, async (req, res) => {
   }
 });
 
-// app.put("/api/admin/items/:id", adminauthenticateToken, async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { sku, description, item_type, unit_of_measure, color, price, qty } =
-//       req.body;
-
-//     // Validate required fields
-//     if (
-//       !sku ||
-//       !description ||
-//       !item_type ||
-//       !unit_of_measure ||
-//       !color ||
-//       price == null ||
-//       qty == null
-//     ) {
-//       return res.status(400).json({
-//         error:
-//           "Missing required fields: sku, description, item_type, unit_of_measure, color, price, qty",
-//       });
-//     }
-
-//     const [result] = await pool.query(
-//       "UPDATE items SET sku = ?, description = ?, item_type = ?, unit_of_measure = ?, color = ?, price = ?, qty = ?, updated_at = NOW() WHERE id = ?",
-//       [
-//         sku,
-//         description,
-//         item_type.toUpperCase(),
-//         unit_of_measure,
-//         color,
-//         price,
-//         qty,
-//         id,
-//       ]
-//     );
-
-//     if (result.affectedRows === 0) {
-//       return res.status(404).json({ error: "Item not found" });
-//     }
-
-//     res.json({ message: "Item updated successfully" });
-//   } catch (err) {
-//     console.error("Error updating item:", err);
-//     res.status(500).json({ error: "Failed to update item" });
-//   }
-// });
-
-// DELETE /api/items/:id
 
 app.put("/api/admin/items/:id", adminauthenticateToken, async (req, res) => {
   try {
@@ -7759,6 +7647,142 @@ const excelupload = multer({
   },
 });
 
+// app.post(
+//   "/api/admin/import-items",
+//   adminauthenticateToken,
+//   excelupload.single("file"),
+//   async (req, res) => {
+//     let connection;
+
+//     try {
+//       // Get database connection
+//       connection = await pool.getConnection();
+
+//       // Check if file was uploaded
+//       if (!req.file) {
+//         throw new Error("No Excel file was uploaded");
+//       }
+
+//       // Read Excel file from buffer
+//       const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+//       const sheet = workbook.Sheets[workbook.SheetNames[0]];
+//       const data = XLSX.utils.sheet_to_json(sheet);
+
+//       if (data.length === 0) {
+//         throw new Error("Excel file is empty or has no data rows");
+//       }
+
+//       console.log("Excel headers:", Object.keys(data[0]));
+
+//       let skippedRows = [];
+
+//       try {
+//         await connection.beginTransaction();
+
+//         for (const [index, item] of data.entries()) {
+//           // Normalize keys to lowercase and trim
+//           const itemKeys = Object.keys(item).reduce((acc, key) => {
+//             acc[key.toLowerCase()] =
+//               typeof item[key] === "string" ? item[key].trim() : item[key];
+//             return acc;
+//           }, {});
+
+//           // Map fields to database columns
+//           const sku = itemKeys["no"] ? String(itemKeys["no"]).trim() : null;
+//           const description = itemKeys["description"]
+//             ? String(itemKeys["description"]).trim()
+//             : null;
+//           const color = itemKeys["color"]
+//             ? String(itemKeys["color"]).trim()
+//             : null;
+//           const item_type = itemKeys["description 2"]
+//             ? String(itemKeys["description 2"]).trim()
+//             : "STAINED ITEMS";
+//           const search_description = itemKeys["item name"]
+//             ? String(itemKeys["item name"]).trim()
+//             : null;
+//           const unit_of_measure = itemKeys["base unit of measure"]
+//             ? String(itemKeys["base unit of measure"]).trim()
+//             : "Each";
+//           const price =
+//             itemKeys["unit price"] !== undefined
+//               ? parseFloat(itemKeys["unit price"])
+//               : null;
+//           const unitcost =
+//             itemKeys["unit cost"] !== undefined
+//               ? parseFloat(itemKeys["unit cost"])
+//               : "0.00";
+//           const qty =
+//             itemKeys["qty"] !== undefined ? parseFloat(itemKeys["qty"]) : 0;
+
+//           console.log(
+//             `Row ${
+//               index + 2
+//             }: SKU=${sku}, Description=${description}, Color=${color}, Item Type=${item_type}, Search Description=${search_description}, Unit of Measure=${unit_of_measure}, Price=${price}, Qty=${qty}`
+//           );
+
+//           if (!sku || !description) {
+//             skippedRows.push({
+//               row: index + 2,
+//               item,
+//               reason: `Missing SKU or Description`,
+//             });
+//             continue;
+//           }
+
+//           // Insert into items table
+//           await connection.query(
+//             `INSERT INTO items (
+//             sku, description, item_type, search_description, unit_of_measure, price, color, qty,unitcost,
+//             weight, cube, cw, gr, se, sw
+//           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)`,
+//             [
+//               sku,
+//               description,
+//               item_type,
+//               search_description,
+//               unit_of_measure,
+//               price,
+//               color,
+//               qty,
+//               unitcost,
+//               null, // weight
+//               null, // cube
+//               null, // cw
+//               null, // gr
+//               null, // se
+//               null, // sw
+//             ]
+//           );
+//         }
+
+//         await connection.commit();
+
+//         res.json({
+//           message: "Data imported successfully",
+//           skippedRows,
+//         });
+//       } catch (err) {
+//         console.error("Error importing data:", err);
+//         if (connection) {
+//           await connection.rollback();
+//         }
+//         res
+//           .status(500)
+//           .json({ error: "Failed to import data", details: err.message });
+//       }
+//     } catch (error) {
+//       console.error("Error reading file or opening connection:", error.message);
+//       res.status(500).json({ error: error.message });
+//     } finally {
+//       if (connection) {
+//         connection.release();
+//       }
+//     }
+//   }
+// );
+
+
 app.post(
   "/api/admin/import-items",
   adminauthenticateToken,
@@ -7800,15 +7824,15 @@ app.post(
           }, {});
 
           // Map fields to database columns
-          const sku = itemKeys["no"] ? String(itemKeys["no"]).trim() : null;
+          const sku = itemKeys["sku"] ? String(itemKeys["sku"]).trim() : null;
           const description = itemKeys["description"]
             ? String(itemKeys["description"]).trim()
             : null;
           const color = itemKeys["color"]
             ? String(itemKeys["color"]).trim()
             : null;
-          const item_type = itemKeys["description 2"]
-            ? String(itemKeys["description 2"]).trim()
+          const item_type = itemKeys["painted/stained"]
+            ? String(itemKeys["painted/stained"]).trim()
             : "STAINED ITEMS";
           const search_description = itemKeys["item name"]
             ? String(itemKeys["item name"]).trim()
@@ -7825,7 +7849,7 @@ app.post(
               ? parseFloat(itemKeys["unit cost"])
               : "0.00";
           const qty =
-            itemKeys["qty"] !== undefined ? parseFloat(itemKeys["qty"]) : 0;
+            itemKeys["quantity"] !== undefined ? parseFloat(itemKeys["quantity"]) : 0;
 
           console.log(
             `Row ${
