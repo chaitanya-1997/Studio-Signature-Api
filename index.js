@@ -84,6 +84,7 @@ app.use(
   "/uploads",
   express.static(path.join(__dirname, "../../public_html/uploads"))
 );
+
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Multer storage configuration
@@ -1481,10 +1482,10 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
         .status(400)
         .json({ error: "Subtotal, tax, and total are required" });
     }
-    if (!doorStyle || !finishType || !account || !billTo || !jobsiteAddress) {
+    if (!doorStyle || !finishType || !account || !billTo ) {
       console.log('Validation failed: Required fields missing', { doorStyle, finishType, account, billTo, jobsiteAddress });
       return res.status(400).json({
-        error: "Door style, finish type, account, bill-to, and jobsite address are required",
+        error: "Door style, finish type, account, bill-to are required",
       });
     }
     if (finishType === "Stained" && !stainOption) {
