@@ -7446,50 +7446,95 @@ console.log("Destructured values:", { sku, description, item_type, unit_of_measu
 });
 
 
+// app.put("/api/admin/items/:id", adminauthenticateToken, async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const {
+//       sku,
+//       description,
+//       item_type,
+//       unit_of_measure,
+//       color,
+//       price,
+//       qty,
+//       unitcost,
+//     } = req.body;
+
+//     // Validate required fields
+//     if (
+//       !sku ||
+//       !description ||
+//       !item_type ||
+//       !unit_of_measure ||
+//       !color ||
+//       price == null ||
+//       qty == null ||
+//       unitcost == null // Added unitcost validation
+//     ) {
+//       return res.status(400).json({
+//         error:
+//           "Missing required fields: sku, description, item_type, unit_of_measure, color, price, qty, unitcost",
+//       });
+//     }
+
+//     const [result] = await pool.query(
+//       "UPDATE items SET sku = ?, description = ?, item_type = ?, unit_of_measure = ?, color = ?, price = ?, qty = ?, unitcost = ?, updated_at = NOW() WHERE id = ?",
+//       [
+//         sku,
+//         description,
+//         item_type.toUpperCase(),
+//         unit_of_measure,
+//         color,
+//         price,
+//         qty,
+//         unitcost, // Added unitcost to query
+//         id,
+//       ]
+//     );
+
+//     if (result.affectedRows === 0) {
+//       return res.status(404).json({ error: "Item not found" });
+//     }
+
+//     res.json({ message: "Item updated successfully" });
+//   } catch (err) {
+//     console.error("Error updating item:", err);
+//     res.status(500).json({ error: "Failed to update item" });
+//   }
+// });
+
 app.put("/api/admin/items/:id", adminauthenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      sku,
-      description,
-      item_type,
-      unit_of_measure,
-      color,
-      price,
-      qty,
-      unitcost,
-    } = req.body;
+    const updateFields = req.body;
 
-    // Validate required fields
-    if (
-      !sku ||
-      !description ||
-      !item_type ||
-      !unit_of_measure ||
-      !color ||
-      price == null ||
-      qty == null ||
-      unitcost == null // Added unitcost validation
-    ) {
-      return res.status(400).json({
-        error:
-          "Missing required fields: sku, description, item_type, unit_of_measure, color, price, qty, unitcost",
-      });
+    // If no fields provided
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({ error: "No fields provided to update" });
     }
 
+    let columns = [];
+    let values = [];
+
+    for (let key in updateFields) {
+      // Convert item_type to uppercase automatically
+      if (key === "item_type") {
+        columns.push(`${key} = ?`);
+        values.push(updateFields[key].toUpperCase());
+      } else {
+        columns.push(`${key} = ?`);
+        values.push(updateFields[key]);
+      }
+    }
+
+    // Add updated_at timestamp
+    columns.push("updated_at = NOW()");
+
+    values.push(id);
+
     const [result] = await pool.query(
-      "UPDATE items SET sku = ?, description = ?, item_type = ?, unit_of_measure = ?, color = ?, price = ?, qty = ?, unitcost = ?, updated_at = NOW() WHERE id = ?",
-      [
-        sku,
-        description,
-        item_type.toUpperCase(),
-        unit_of_measure,
-        color,
-        price,
-        qty,
-        unitcost, // Added unitcost to query
-        id,
-      ]
+      `UPDATE items SET ${columns.join(", ")} WHERE id = ?`,
+      values
     );
 
     if (result.affectedRows === 0) {
@@ -7502,6 +7547,7 @@ app.put("/api/admin/items/:id", adminauthenticateToken, async (req, res) => {
     res.status(500).json({ error: "Failed to update item" });
   }
 });
+
 
 app.delete("/api/admin/items/:id", adminauthenticateToken, async (req, res) => {
   try {
