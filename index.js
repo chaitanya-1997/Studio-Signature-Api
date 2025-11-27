@@ -129,6 +129,182 @@ const generateInvoiceNumber = async () => {
   return `INV-${String(count).padStart(4, "0")}`;
 };
 
+
+//----------------------------------------website API---------------------------------------
+
+
+// Email API endpoint
+app.post('/api/send-email', async (req, res) => {
+  try {
+    const { name, email, phone, city, address, note } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !phone || !city || !address) {
+      return res.status(400).json({ 
+        error: 'All fields are required except note' 
+      });
+    }
+
+    // Email content for admin
+    const adminMailOptions = {
+      from: '"Studio Signature Cabinets Contact Form" <sssdemo6@gmail.com>',
+      to: 'info@studiosignaturecabinets.com',
+    
+      subject: `New Contact Form Submission from ${name}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px;">
+            New Contact Form Submission
+          </h2>
+          
+          <p><strong>You have received a new message from your website contact form:</strong></p>
+          
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd; background-color: #f9f9f9; width: 30%;"><strong>Name:</strong></td>
+              <td style="padding: 8px; border: 1px solid #ddd;">${name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd; background-color: #f9f9f9;"><strong>Email:</strong></td>
+              <td style="padding: 8px; border: 1px solid #ddd;">
+                <a href="mailto:${email}" style="color: #007bff; text-decoration: none;">${email}</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd; background-color: #f9f9f9;"><strong>Phone:</strong></td>
+              <td style="padding: 8px; border: 1px solid #ddd;">
+                <a href="tel:${phone}" style="color: #007bff; text-decoration: none;">${phone}</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd; background-color: #f9f9f9;"><strong>City:</strong></td>
+              <td style="padding: 8px; border: 1px solid #ddd;">${city}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd; background-color: #f9f9f9;"><strong>Address:</strong></td>
+              <td style="padding: 8px; border: 1px solid #ddd;">${address}</td>
+            </tr>
+            ${note ? `
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd; background-color: #f9f9f9;"><strong>Note:</strong></td>
+              <td style="padding: 8px; border: 1px solid #ddd;">${note}</td>
+            </tr>
+            ` : ''}
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd; background-color: #f9f9f9;"><strong>Submission Time:</strong></td>
+              <td style="padding: 8px; border: 1px solid #ddd;">${new Date().toLocaleString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}</td>
+            </tr>
+          </table>
+
+          <div style="background-color: #f8f9fa; padding: 15px; margin: 20px 0; border-left: 4px solid #007bff;">
+            <p style="margin: 0;"><strong>Action Required:</strong> Please follow up with this potential customer within 24 hours.</p>
+          </div>
+
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+            <p style="color: #666; font-size: 12px;">
+              This email was automatically generated from your website contact form.<br>
+              Studio Signature Cabinets | 200 Outlook Point Drive #200, Orlando, FL 32809
+            </p>
+          </div>
+        </div>
+      `,
+    };
+
+    // Confirmation email to user
+    const userMailOptions = {
+      from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+      to: email,
+      subject: 'Thank you for contacting Studio Signature Cabinets',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px;">
+            Thank You for Contacting Studio Signature Cabinets
+          </h2>
+          
+          <p>Dear <strong>${name}</strong>,</p>
+          
+          <p>Thank you for reaching out to Studio Signature Cabinets. We have received your inquiry and our team will contact you within <strong>24-48 hours</strong>.</p>
+
+          <div style="background-color: #f8f9fa; padding: 15px; margin: 20px 0; border: 1px solid #ddd;">
+            <h3 style="margin-top: 0; color: #333;">Your Inquiry Summary:</h3>
+            <table style="width: 100%;">
+              <tr>
+                <td style="padding: 5px 0;"><strong>Name:</strong></td>
+                <td style="padding: 5px 0;">${name}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 0;"><strong>Email:</strong></td>
+                <td style="padding: 5px 0;">${email}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 0;"><strong>Phone:</strong></td>
+                <td style="padding: 5px 0;">${phone}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 0;"><strong>City:</strong></td>
+                <td style="padding: 5px 0;">${city}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 0;"><strong>Address:</strong></td>
+                <td style="padding: 5px 0;">${address}</td>
+              </tr>
+              ${note ? `
+              <tr>
+                <td style="padding: 5px 0;"><strong>Note:</strong></td>
+                <td style="padding: 5px 0;">${note}</td>
+              </tr>
+              ` : ''}
+            </table>
+          </div>
+
+          <p>If you require immediate assistance, please don't hesitate to call us directly:</p>
+          
+          <div style="background-color: #e9f7fe; padding: 15px; margin: 20px 0; border-left: 4px solid #007bff;">
+            <p style="margin: 0;">
+              <strong>Phone:</strong> <a href="tel:3214727244" style="color: #007bff; text-decoration: none;">321-472-7244</a><br>
+              <strong>Email:</strong> <a href="mailto:info@studiosignaturecabinets.com" style="color: #007bff; text-decoration: none;">info@studiosignaturecabinets.com</a>
+            </p>
+          </div>
+
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+            <p><strong>Best regards,</strong><br>
+            The Studio Signature Cabinets Team</p>
+            
+            <p style="color: #666; font-size: 12px;">
+              Studio Signature Cabinets<br>
+              200 Outlook Point Drive #200, Orlando, FL 32809<br>
+              Phone: 321-472-7244 | Email: info@studiosignaturecabinets.com
+            </p>
+          </div>
+        </div>
+      `,
+    };
+
+    // Send both emails
+    await transporter.sendMail(adminMailOptions);
+    await transporter.sendMail(userMailOptions);
+    
+    console.log(`Email sent successfully for: ${name} (${email})`);
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'Email sent successfully' 
+    });
+    
+  } catch (error) {
+    console.error('Error sending email:', error);
+    res.status(500).json({ 
+      error: 'Failed to send email: ' + error.message 
+    });
+  }
+});
+
 //---------------------------------Customer ApI---------------------------------
 
 //Signup API
@@ -997,6 +1173,7 @@ app.get("/api/orders/next-id", async (req, res) => {
 
 
 
+
 // app.post("/api/orders", authenticateToken, async (req, res) => {
 //   const {
 //     doorStyle,
@@ -1005,6 +1182,7 @@ app.get("/api/orders/next-id", async (req, res) => {
 //     paintOption,
 //     account,
 //     billTo,
+//     jobsiteAddress,
 //     items,
 //     designServicesPrice,
 //     assemblyFlag,
@@ -1034,10 +1212,10 @@ app.get("/api/orders/next-id", async (req, res) => {
 //         .status(400)
 //         .json({ error: "Subtotal, tax, and total are required" });
 //     }
-//     if (!doorStyle || !finishType || !account || !billTo) {
-//       console.log('Validation failed: Required fields missing', { doorStyle, finishType, account, billTo });
+//     if (!doorStyle || !finishType || !account || !billTo ) {
+//       console.log('Validation failed: Required fields missing', { doorStyle, finishType, account, billTo, jobsiteAddress });
 //       return res.status(400).json({
-//         error: "Door style, finish type, account, and bill-to are required",
+//         error: "Door style, finish type, account, bill-to are required",
 //       });
 //     }
 //     if (finishType === "Stained" && !stainOption) {
@@ -1111,7 +1289,6 @@ app.get("/api/orders/next-id", async (req, res) => {
 
 //     // Validate total
 //     const taxcalc = parseFloat((subtotal - expectedDiscount).toFixed(2));
-//     // const expectedTax = parseFloat((subtotal * 0.07).toFixed(2));
 //     const expectedTax = parseFloat((taxcalc * 0.065).toFixed(2));
 //     const expectedTotal = parseFloat(
 //       (subtotal - expectedDiscount + expectedTax).toFixed(2)
@@ -1168,9 +1345,9 @@ app.get("/api/orders/next-id", async (req, res) => {
 //     const [orderResult] = await connection.query(
 //       `INSERT INTO orders (
 //         user_id, door_style, finish_type, stain_option, paint_option, 
-//         account, bill_to, design_services_price, assembly_flag, 
-//         subtotal, tax, shipping, discount, total, status, created_at
-//       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW())`,
+//         account, bill_to, jobsite_address, design_services_price, assembly_flag, 
+//         subtotal, tax, shipping, discount, total, status, created_at, po_number
+//       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW(), NULL)`,
 //       [
 //         userId,
 //         doorStyle,
@@ -1179,6 +1356,7 @@ app.get("/api/orders/next-id", async (req, res) => {
 //         paintOption || null,
 //         account,
 //         billTo,
+//         jobsiteAddress,
 //         designServicesPrice || 0,
 //         assemblyFlag,
 //         subtotal,
@@ -1196,9 +1374,14 @@ app.get("/api/orders/next-id", async (req, res) => {
 //     const orderId = `S-ORD${String(autoId + 101001).padStart(6, "0")}`;
 //     console.log('Generated orderId:', orderId);
 
-//     // Update order_id
-//     await connection.query(`UPDATE orders SET order_id = ? WHERE id = ?`, [
+//     // Generate po_number
+//     const poNumber = await generatePONumber(pool);
+//     console.log('Generated poNumber:', poNumber);
+
+//     // Update order_id and po_number
+//     await connection.query(`UPDATE orders SET order_id = ?, po_number = ? WHERE id = ?`, [
 //       orderId,
+//       poNumber,
 //       autoId,
 //     ]);
 
@@ -1253,6 +1436,7 @@ app.get("/api/orders/next-id", async (req, res) => {
 //           }
 //           <li><strong>Ship To:</strong> ${account}</li>
 //           <li><strong>Bill To:</strong> ${billTo}</li>
+//           <li><strong>Jobsite Address:</strong> ${jobsiteAddress}</li>
 //           ${
 //             designServicesPrice > 0
 //               ? `<li><strong>Design Services:</strong> $${parseFloat(
@@ -1327,6 +1511,7 @@ app.get("/api/orders/next-id", async (req, res) => {
 //           }
 //           <li><strong>Ship To:</strong> ${account}</li>
 //           <li><strong>Bill To:</strong> ${billTo}</li>
+//           <li><strong>Jobsite Address:</strong> ${jobsiteAddress}</li>
 //           ${
 //             designServicesPrice > 0
 //               ? `<li><strong>Design Services:</strong> $${parseFloat(
@@ -1375,7 +1560,7 @@ app.get("/api/orders/next-id", async (req, res) => {
 //               ? `<li><strong>Discount:</strong> $${parseFloat(discount).toFixed(2)}</li>`
 //               : ""
 //           }
-//           <li><strong>Tax (7%):</strong> $${parseFloat(tax).toFixed(2)}</li>
+//           <li><strong>Tax (6.5%):</strong> $${parseFloat(tax).toFixed(2)}</li>
 //           <li><strong>Shipping:</strong> ${shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"}</li>
 //           <li><strong>Total:</strong> $${parseFloat(total).toFixed(2)}</li>
 //         </ul>
@@ -1389,7 +1574,7 @@ app.get("/api/orders/next-id", async (req, res) => {
 //       html: `
 //         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
 //           <h2>Thank You for Your Order, ${userFullName}!</h2>
-//           <p>Your order <strong>${orderId}</strong> has been submitted on ${new Date().toLocaleDateString()} and is currently <strong>pending admin approval</strong>.</p>
+//           <p>Your order <strong>${orderId}</strong> (PO: <strong>${poNumber}</strong>) has been submitted on ${new Date().toLocaleDateString()} and is currently <strong>pending admin approval</strong>.</p>
 //           <p><strong>Important:</strong></p>
 //           <ul>
 //             <li>This order cannot be edited or canceled after 24 hours.</li>
@@ -1404,10 +1589,10 @@ app.get("/api/orders/next-id", async (req, res) => {
 //     const adminMailOptions = {
 //       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
 //       to: 'sjingle@studiosignaturecabinets.com',
-//       subject: `New Order Pending Approval - ${orderId}`,
+//       subject: `New Order Pending Approval - ${orderId} (PO: ${poNumber})`,
 //       html: `
 //         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//           <h2>New Order Pending Approval: ${orderId}</h2>
+//           <h2>New Order Pending Approval: ${orderId} (PO: ${poNumber})</h2>
 //           <p>A new order has been submitted by <strong>${userFullName}</strong> (${userEmail}) on ${new Date().toLocaleDateString()}.</p>
 //           <p><strong>Phone:</strong> ${userPhone}</p>
 //           ${adminOrderDetailsHtml}
@@ -1428,6 +1613,8 @@ app.get("/api/orders/next-id", async (req, res) => {
 //     res.status(201).json({
 //       message: "Order submitted successfully and is pending admin approval",
 //       order_id: orderId,
+//       po_number: poNumber,
+//       jobsite_address: jobsiteAddress,
 //     });
 //   } catch (err) {
 //     if (connection) {
@@ -1461,56 +1648,63 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
     shipping,
     total,
     discount,
+    poNumber, // ✅ NEW: take PO Number from body (optional)
   } = req.body;
 
   let connection;
 
   try {
     // Log the received payload
-    console.log('Received payload:', JSON.stringify(req.body, null, 2));
+    console.log("Received payload:", JSON.stringify(req.body, null, 2));
 
     // Validations
     if (!items || !Array.isArray(items) || items.length === 0) {
-      console.log('Validation failed: Items are missing or not an array');
+      console.log("Validation failed: Items are missing or not an array");
       return res
         .status(400)
         .json({ error: "Items are required and must be a non-empty array" });
     }
     if (!subtotal || !tax || !total) {
-      console.log('Validation failed: Subtotal, tax, or total missing');
+      console.log("Validation failed: Subtotal, tax, or total missing");
       return res
         .status(400)
         .json({ error: "Subtotal, tax, and total are required" });
     }
-    if (!doorStyle || !finishType || !account || !billTo ) {
-      console.log('Validation failed: Required fields missing', { doorStyle, finishType, account, billTo, jobsiteAddress });
+    if (!doorStyle || !finishType || !account || !billTo) {
+      console.log("Validation failed: Required fields missing", {
+        doorStyle,
+        finishType,
+        account,
+        billTo,
+        jobsiteAddress,
+      });
       return res.status(400).json({
         error: "Door style, finish type, account, bill-to are required",
       });
     }
     if (finishType === "Stained" && !stainOption) {
-      console.log('Validation failed: Stain option missing for Stained finish');
+      console.log("Validation failed: Stain option missing for Stained finish");
       return res
         .status(400)
         .json({ error: "Stain option is required for stained finish" });
     }
     if (finishType === "Painted" && !paintOption) {
-      console.log('Validation failed: Paint option missing for Painted finish');
+      console.log("Validation failed: Paint option missing for Painted finish");
       return res
         .status(400)
         .json({ error: "Paint option is required for painted finish" });
     }
     if (designServicesPrice < 0) {
-      console.log('Validation failed: Negative design services price');
+      console.log("Validation failed: Negative design services price");
       return res
         .status(400)
         .json({ error: "Design services price cannot be negative" });
     }
     if (!["Included", "Not Included"].includes(assemblyFlag)) {
-      console.log('Validation failed: Invalid assembly flag', assemblyFlag);
-      return res
-        .status(400)
-        .json({ error: "Assembly flag must be 'Included' or 'Not Included'" });
+      console.log("Validation failed: Invalid assembly flag", assemblyFlag);
+      return res.status(400).json({
+        error: "Assembly flag must be 'Included' or 'Not Included'",
+      });
     }
 
     const userId = req.user.id;
@@ -1521,7 +1715,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
       [userId]
     );
     if (userResult.length === 0) {
-      console.log('User not found for ID:', userId);
+      console.log("User not found for ID:", userId);
       return res.status(404).json({ error: "User not found" });
     }
 
@@ -1539,19 +1733,27 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
       (itemsSubtotal + designServicesPrice).toFixed(2)
     );
     if (parseFloat(subtotal.toFixed(2)) !== expectedSubtotal) {
-      console.log('Subtotal mismatch', { expected: expectedSubtotal, received: subtotal });
+      console.log("Subtotal mismatch", {
+        expected: expectedSubtotal,
+        received: subtotal,
+      });
       return res.status(400).json({
         error: `Invalid subtotal. Expected: ${expectedSubtotal}, Received: ${subtotal}`,
       });
     }
 
     // Validate discount
-    const expectedDiscount = parseFloat((subtotal * adminDiscount).toFixed(2));
+    const expectedDiscount = parseFloat(
+      (subtotal * adminDiscount).toFixed(2)
+    );
     if (
       discount === undefined ||
       parseFloat(discount.toFixed(2)) !== expectedDiscount
     ) {
-      console.log('Discount mismatch', { expected: expectedDiscount, received: discount });
+      console.log("Discount mismatch", {
+        expected: expectedDiscount,
+        received: discount,
+      });
       return res.status(400).json({
         error: `Invalid discount amount. Expected: ${expectedDiscount}, Received: ${discount}`,
       });
@@ -1564,7 +1766,10 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
       (subtotal - expectedDiscount + expectedTax).toFixed(2)
     );
     if (parseFloat(total.toFixed(2)) !== expectedTotal) {
-      console.log('Total mismatch', { expected: expectedTotal, received: total });
+      console.log("Total mismatch", {
+        expected: expectedTotal,
+        received: total,
+      });
       return res.status(400).json({
         error: `Invalid total amount. Expected: ${expectedTotal}, Received: ${total}`,
       });
@@ -1577,7 +1782,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
     // Validate inventory for each item
     for (const item of items) {
       if (!item.sku || !item.name || !item.quantity || item.quantity < 1) {
-        console.log('Invalid item data', item);
+        console.log("Invalid item data", item);
         throw new Error(
           "Invalid item data: SKU, name, and valid quantity are required"
         );
@@ -1590,13 +1795,17 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
       );
 
       if (itemResult.length === 0) {
-        console.log('Item not found in inventory', item.sku);
+        console.log("Item not found in inventory", item.sku);
         throw new Error(`Item with SKU ${item.sku} not found in inventory`);
       }
 
       const availableQty = parseFloat(itemResult[0].qty) || 0;
       if (availableQty < item.quantity) {
-        console.log('Insufficient stock', { sku: item.sku, available: availableQty, requested: item.quantity });
+        console.log("Insufficient stock", {
+          sku: item.sku,
+          available: availableQty,
+          requested: item.quantity,
+        });
         throw new Error(
           `Insufficient stock for SKU ${item.sku}. Available: ${availableQty}, Requested: ${item.quantity}`
         );
@@ -1604,20 +1813,25 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
 
       // Validate carcass items
       if (item.sku.endsWith("-CAR")) {
-        if (itemResult[0].item_type !== "CARCASS" || itemResult[0].color !== "Carcass") {
-          console.log('Invalid carcass item', item.sku);
-          throw new Error(`Item with SKU ${item.sku} is not a valid carcass item`);
+        if (
+          itemResult[0].item_type !== "CARCASS" ||
+          itemResult[0].color !== "Carcass"
+        ) {
+          console.log("Invalid carcass item", item.sku);
+          throw new Error(
+            `Item with SKU ${item.sku} is not a valid carcass item`
+          );
         }
       }
     }
 
-    // Insert order
+    // Insert order (po_number comes from user; optional)
     const [orderResult] = await connection.query(
       `INSERT INTO orders (
         user_id, door_style, finish_type, stain_option, paint_option, 
         account, bill_to, jobsite_address, design_services_price, assembly_flag, 
         subtotal, tax, shipping, discount, total, status, created_at, po_number
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW(), NULL)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW(), ?)`,
       [
         userId,
         doorStyle,
@@ -1634,30 +1848,26 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
         shipping !== undefined ? shipping : null,
         discount || 0,
         total,
+        poNumber || null, // ✅ save user PO or null
       ]
     );
 
     const autoId = orderResult.insertId;
-    console.log('Inserted order with autoId:', autoId);
+    console.log("Inserted order with autoId:", autoId);
 
     // Generate order_id
     const orderId = `S-ORD${String(autoId + 101001).padStart(6, "0")}`;
-    console.log('Generated orderId:', orderId);
+    console.log("Generated orderId:", orderId);
 
-    // Generate po_number
-    const poNumber = await generatePONumber(pool);
-    console.log('Generated poNumber:', poNumber);
-
-    // Update order_id and po_number
-    await connection.query(`UPDATE orders SET order_id = ?, po_number = ? WHERE id = ?`, [
+    // ✅ Only update order_id now; po_number already stored from user
+    await connection.query(`UPDATE orders SET order_id = ? WHERE id = ?`, [
       orderId,
-      poNumber,
       autoId,
     ]);
 
     // Insert order items and update inventory
     for (const item of items) {
-      console.log('Inserting order item:', item);
+      console.log("Inserting order item:", item);
       await connection.query(
         `INSERT INTO order_items (order_id, sku, name, quantity, price, total_amount, door_style, finish)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1682,10 +1892,10 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
 
     // Commit transaction
     await connection.commit();
-    console.log('Transaction committed for orderId:', orderId);
+    console.log("Transaction committed for orderId:", orderId);
 
     // Filter items for user email (exclude carcass items)
-    const userItems = items.filter(item => !item.sku.endsWith("-CAR"));
+    const userItems = items.filter((item) => !item.sku.endsWith("-CAR"));
 
     // Email template for user (excludes carcass items)
     const userOrderDetailsHtml = `
@@ -1706,7 +1916,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
           }
           <li><strong>Ship To:</strong> ${account}</li>
           <li><strong>Bill To:</strong> ${billTo}</li>
-          <li><strong>Jobsite Address:</strong> ${jobsiteAddress}</li>
+          <li><strong>Jobsite Address:</strong> ${jobsiteAddress || "-"}</li>
           ${
             designServicesPrice > 0
               ? `<li><strong>Design Services:</strong> $${parseFloat(
@@ -1717,6 +1927,11 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
           ${
             assemblyFlag === "Included"
               ? `<li><strong>Assembly Services:</strong> Included</li>`
+              : ""
+          }
+          ${
+            poNumber
+              ? `<li><strong>PO Number:</strong> ${poNumber}</li>`
               : ""
           }
         </ul>
@@ -1739,8 +1954,12 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
                 <td style="border: 1px solid #ddd; padding: 8px;">${item.sku}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
                 <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.quantity}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(item.price || 0).toFixed(2)}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(item.totalAmount || 0).toFixed(2)}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
+                  item.price || 0
+                ).toFixed(2)}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
+                  item.totalAmount || 0
+                ).toFixed(2)}</td>
               </tr>
             `
               )
@@ -1749,14 +1968,20 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
         </table>
         <h3>Price Summary</h3>
         <ul style="list-style: none; padding: 0;">
-          <li><strong>Subtotal:</strong> $${parseFloat(subtotal).toFixed(2)}</li>
+          <li><strong>Subtotal:</strong> $${parseFloat(subtotal).toFixed(
+            2
+          )}</li>
           ${
             discount > 0
-              ? `<li><strong>Discount:</strong> $${parseFloat(discount).toFixed(2)}</li>`
+              ? `<li><strong>Discount:</strong> $${parseFloat(
+                  discount
+                ).toFixed(2)}</li>`
               : ""
           }
           <li><strong>Tax (6.5%):</strong> $${parseFloat(tax).toFixed(2)}</li>
-          <li><strong>Shipping:</strong> ${shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"}</li>
+          <li><strong>Shipping:</strong> ${
+            shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"
+          }</li>
           <li><strong>Total:</strong> $${parseFloat(total).toFixed(2)}</li>
         </ul>
       </div>
@@ -1781,7 +2006,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
           }
           <li><strong>Ship To:</strong> ${account}</li>
           <li><strong>Bill To:</strong> ${billTo}</li>
-          <li><strong>Jobsite Address:</strong> ${jobsiteAddress}</li>
+          <li><strong>Jobsite Address:</strong> ${jobsiteAddress || "-"}</li>
           ${
             designServicesPrice > 0
               ? `<li><strong>Design Services:</strong> $${parseFloat(
@@ -1792,6 +2017,11 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
           ${
             assemblyFlag === "Included"
               ? `<li><strong>Assembly Services:</strong> Included</li>`
+              : ""
+          }
+          ${
+            poNumber
+              ? `<li><strong>PO Number:</strong> ${poNumber}</li>`
               : ""
           }
         </ul>
@@ -1814,8 +2044,12 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
                 <td style="border: 1px solid #ddd; padding: 8px;">${item.sku}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
                 <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.quantity}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(item.price || 0).toFixed(2)}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(item.totalAmount || 0).toFixed(2)}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
+                  item.price || 0
+                ).toFixed(2)}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
+                  item.totalAmount || 0
+                ).toFixed(2)}</td>
               </tr>
             `
               )
@@ -1824,14 +2058,20 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
         </table>
         <h3>Price Summary</h3>
         <ul style="list-style: none; padding: 0;">
-          <li><strong>Subtotal:</strong> $${parseFloat(subtotal).toFixed(2)}</li>
+          <li><strong>Subtotal:</strong> $${parseFloat(subtotal).toFixed(
+            2
+          )}</li>
           ${
             discount > 0
-              ? `<li><strong>Discount:</strong> $${parseFloat(discount).toFixed(2)}</li>`
+              ? `<li><strong>Discount:</strong> $${parseFloat(
+                  discount
+                ).toFixed(2)}</li>`
               : ""
           }
           <li><strong>Tax (6.5%):</strong> $${parseFloat(tax).toFixed(2)}</li>
-          <li><strong>Shipping:</strong> ${shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"}</li>
+          <li><strong>Shipping:</strong> ${
+            shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"
+          }</li>
           <li><strong>Total:</strong> $${parseFloat(total).toFixed(2)}</li>
         </ul>
       </div>
@@ -1844,13 +2084,17 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2>Thank You for Your Order, ${userFullName}!</h2>
-          <p>Your order <strong>${orderId}</strong> (PO: <strong>${poNumber}</strong>) has been submitted on ${new Date().toLocaleDateString()} and is currently <strong>pending admin approval</strong>.</p>
+          <p>Your order <strong>${orderId}</strong>${
+            poNumber ? ` (PO: <strong>${poNumber}</strong>)` : ""
+          } has been submitted on ${new Date().toLocaleDateString()} and is currently <strong>pending admin approval</strong>.</p>
           <p><strong>Important:</strong></p>
-          <ul>
-            <li>This order cannot be edited or canceled after 24 hours.</li>
-            <li>Please note: Your order will be considered accepted after 24 hours of placement.</li>
-            <li>Shipping charges will be applied by the admin based on your location's shipping zone. You'll receive an updated order amount via email once finalized.</li>
-          </ul>
+        <ul>
+  <li>This order cannot be edited or canceled after 24 hours.</li>
+  <li>Please note: Your order will be considered accepted after 24 hours of placement.</li>
+  <li>Shipping charges will be applied by the admin based on your location's shipping zone. You'll receive an updated order amount via email once finalized.</li>
+  <li>Assembly service price will be added upon request.</li>
+</ul>
+
           ${userOrderDetailsHtml}
         </div>
       `,
@@ -1858,11 +2102,15 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
 
     const adminMailOptions = {
       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
-      to: 'sjingle@studiosignaturecabinets.com',
-      subject: `New Order Pending Approval - ${orderId} (PO: ${poNumber})`,
+      to: "sjingle@studiosignaturecabinets.com",
+      subject: `New Order Pending Approval - ${orderId}${
+        poNumber ? ` (PO: ${poNumber})` : ""
+      }`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2>New Order Pending Approval: ${orderId} (PO: ${poNumber})</h2>
+          <h2>New Order Pending Approval: ${orderId}${
+            poNumber ? ` (PO: ${poNumber})` : ""
+          }</h2>
           <p>A new order has been submitted by <strong>${userFullName}</strong> (${userEmail}) on ${new Date().toLocaleDateString()}.</p>
           <p><strong>Phone:</strong> ${userPhone}</p>
           ${adminOrderDetailsHtml}
@@ -1875,15 +2123,15 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
         transporter.sendMail(userMailOptions),
         transporter.sendMail(adminMailOptions),
       ]);
-      console.log('Emails sent successfully for orderId:', orderId);
+      console.log("Emails sent successfully for orderId:", orderId);
     } catch (emailErr) {
-      console.error('Email sending failed:', emailErr);
+      console.error("Email sending failed:", emailErr);
     }
 
     res.status(201).json({
       message: "Order submitted successfully and is pending admin approval",
       order_id: orderId,
-      po_number: poNumber,
+      po_number: poNumber || null,
       jobsite_address: jobsiteAddress,
     });
   } catch (err) {
@@ -1891,7 +2139,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
       await connection.rollback();
       connection.release();
     }
-    console.error('Transaction failed:', err);
+    console.error("Transaction failed:", err);
     res.status(400).json({ error: err.message || "Error placing order" });
   } finally {
     if (connection) {
@@ -1899,121 +2147,6 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
     }
   }
 });
-
-
-
-
-// app.get("/api/orders", authenticateToken, async (req, res) => {
-//   try {
-//     const userId = req.user.id;
-
-//     const [orders] = await pool.query(
-//       `SELECT 
-//           o.order_id AS id,
-//           o.created_at,
-//           o.door_style,
-//           o.finish_type,
-//           o.stain_option,
-//           o.paint_option,
-//           o.account,
-//           o.bill_to,
-//           o.subtotal,
-//           o.tax,
-//           o.shipping,
-//           o.total,
-//           o.discount,
-//           o.additional_discount,
-//           o.design_services_price,
-//           o.assembly_flag,
-//           o.status,
-//           -- ✅ Use JSON_ARRAYAGG with COALESCE to ensure non-null array
-//           COALESCE(
-//             CAST(
-//               JSON_ARRAYAGG(
-//                 JSON_OBJECT(
-//                   'sku', oi.sku,
-//                   'name', oi.name,
-//                   'quantity', oi.quantity,
-//                   'price', oi.price,
-//                   'totalAmount', oi.total_amount
-//                 )
-//               ) AS JSON
-//             ),
-//             JSON_ARRAY()
-//           ) AS items
-//       FROM orders o
-//       LEFT JOIN order_items oi ON o.id = oi.order_id
-//       WHERE o.user_id = ?
-//       GROUP BY o.id
-//       ORDER BY o.created_at DESC`,
-//       [userId]
-//     );
-
-//     const formattedOrders = orders.map((order) => {
-//       // ✅ handle both cases: JSON string or JS array
-//       let parsedItems = [];
-//       try {
-//         if (typeof order.items === "string") {
-//           parsedItems = JSON.parse(order.items);
-//         } else if (Array.isArray(order.items)) {
-//           parsedItems = order.items;
-//         } else {
-//           parsedItems = [];
-//         }
-//       } catch (err) {
-//         console.error(`⚠️ JSON parse failed for order ${order.id}:`, err);
-//         parsedItems = [];
-//       }
-
-//       const additionalDiscountPercent =
-//         order.subtotal && order.additional_discount
-//           ? ((order.additional_discount / order.subtotal) * 100).toFixed(2)
-//           : "0.00";
-
-//       return {
-//         id: order.id,
-//         created_at: order.created_at
-//           ? new Date(order.created_at).toISOString()
-//           : null,
-//         date: order.created_at
-//           ? new Date(order.created_at).toISOString().split("T")[0]
-//           : null,
-//         productLine: order.door_style?.includes("Shaker")
-//           ? "Kitchen Shaker"
-//           : "Bath Shaker",
-//         status: order.status,
-//         total: `$${parseFloat(order.total || 0).toFixed(2)}`,
-//         subtotal: parseFloat(order.subtotal || 0).toFixed(2),
-//         discount: parseFloat(order.discount || 0).toFixed(2),
-//         design_services_price: parseFloat(
-//           order.design_services_price || 0
-//         ).toFixed(2),
-//         assembly_flag: order.assembly_flag,
-//         additional_discount: parseFloat(order.additional_discount || 0).toFixed(
-//           2
-//         ),
-//         additional_discount_percent: parseFloat(additionalDiscountPercent),
-//         tax: parseFloat(order.tax || 0).toFixed(2),
-//         shipping:
-//           order.shipping !== null
-//             ? parseFloat(order.shipping).toFixed(2)
-//             : null,
-//         account: order.account,
-//         bill_to: order.bill_to,
-//         items: parsedItems, // ✅ items always populated now
-//         door_style: order.door_style,
-//         finish_type: order.finish_type,
-//         stain_option: order.stain_option,
-//         paint_option: order.paint_option,
-//       };
-//     });
-
-//     res.json(formattedOrders);
-//   } catch (err) {
-//     console.error("❌ Server error:", err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// });
 
 
 
@@ -2716,6 +2849,86 @@ app.put("/api/orders/:id/cancel", authenticateToken, async (req, res) => {
 // Add these routes to your Express app, assuming you have 'app', 'pool', 'authenticateToken', and 'transporter' defined as in the original code.
 
 // POST /api/drafts - Save a new draft
+
+// app.post("/api/drafts", authenticateToken, async (req, res) => {
+//   const {
+//     doorStyle,
+//     finishType,
+//     stainOption,
+//     paintOption,
+//     account,
+//     billTo,
+//     items,
+//     designServicesPrice,
+//     assemblyFlag,
+//     subtotal,
+//     tax,
+//     shipping,
+//     total,
+//     discount,
+//   } = req.body;
+
+//   try {
+//     // Basic validations (less strict than orders, since it's a draft)
+//     if (!Array.isArray(items)) {
+//       return res.status(400).json({ error: "Items must be an array" });
+//     }
+//     if (!doorStyle || !finishType) {
+//       return res.status(400).json({ error: "Door style and finish type are required" });
+//     }
+//     if (finishType === "Stained" && !stainOption) {
+//       return res.status(400).json({ error: "Stain option is required for stained finish" });
+//     }
+//     if (finishType === "Painted" && !paintOption) {
+//       return res.status(400).json({ error: "Paint option is required for painted finish" });
+//     }
+//     if (designServicesPrice < 0) {
+//       return res.status(400).json({ error: "Design services price cannot be negative" });
+//     }
+//     if (!["Included", "Not Included"].includes(assemblyFlag)) {
+//       return res.status(400).json({ error: "Assembly flag must be 'Included' or 'Not Included'" });
+//     }
+
+//     const userId = req.user.id;
+
+//     // Optional: Recalculate subtotal, discount, etc., server-side for consistency
+//     // But for drafts, store what frontend sends, even if partial
+//     const [result] = await pool.query(
+//       `INSERT INTO draft_orders (
+//         user_id, door_style, finish_type, stain_option, paint_option, 
+//         account, bill_to, design_services_price, assembly_flag, 
+//         items, subtotal, tax, shipping, discount, total
+//       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+//       [
+//         userId,
+//         doorStyle,
+//         finishType,
+//         stainOption || null,
+//         paintOption || null,
+//         account || null,
+//         billTo || null,
+//         designServicesPrice || 0,
+//         assemblyFlag,
+//         JSON.stringify(items),  // Store as JSON
+//         subtotal || null,
+//         tax || null,
+//         shipping !== undefined ? shipping : null,
+//         discount || null,
+//         total || null,
+//       ]
+//     );
+
+//     res.status(201).json({
+//       message: "Draft saved successfully",
+//       draftId: result.insertId,
+//     });
+//   } catch (err) {
+//     console.error('Error saving draft:', err);
+//     res.status(500).json({ error: "Error saving draft" });
+//   }
+// });
+
+
 app.post("/api/drafts", authenticateToken, async (req, res) => {
   const {
     doorStyle,
@@ -2732,6 +2945,8 @@ app.post("/api/drafts", authenticateToken, async (req, res) => {
     shipping,
     total,
     discount,
+    poNumber,        // ✅ NEW
+    jobsiteAddress,  // ✅ NEW
   } = req.body;
 
   try {
@@ -2740,31 +2955,39 @@ app.post("/api/drafts", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "Items must be an array" });
     }
     if (!doorStyle || !finishType) {
-      return res.status(400).json({ error: "Door style and finish type are required" });
+      return res
+        .status(400)
+        .json({ error: "Door style and finish type are required" });
     }
     if (finishType === "Stained" && !stainOption) {
-      return res.status(400).json({ error: "Stain option is required for stained finish" });
+      return res
+        .status(400)
+        .json({ error: "Stain option is required for stained finish" });
     }
     if (finishType === "Painted" && !paintOption) {
-      return res.status(400).json({ error: "Paint option is required for painted finish" });
+      return res
+        .status(400)
+        .json({ error: "Paint option is required for painted finish" });
     }
     if (designServicesPrice < 0) {
-      return res.status(400).json({ error: "Design services price cannot be negative" });
+      return res
+        .status(400)
+        .json({ error: "Design services price cannot be negative" });
     }
     if (!["Included", "Not Included"].includes(assemblyFlag)) {
-      return res.status(400).json({ error: "Assembly flag must be 'Included' or 'Not Included'" });
+      return res.status(400).json({
+        error: "Assembly flag must be 'Included' or 'Not Included'",
+      });
     }
 
     const userId = req.user.id;
 
-    // Optional: Recalculate subtotal, discount, etc., server-side for consistency
-    // But for drafts, store what frontend sends, even if partial
     const [result] = await pool.query(
       `INSERT INTO draft_orders (
-        user_id, door_style, finish_type, stain_option, paint_option, 
-        account, bill_to, design_services_price, assembly_flag, 
-        items, subtotal, tax, shipping, discount, total
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        user_id, door_style, finish_type, stain_option, paint_option,
+        account, bill_to, jobsite_address, design_services_price, assembly_flag,
+        po_number, items, subtotal, tax, shipping, discount, total
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         doorStyle,
@@ -2773,9 +2996,11 @@ app.post("/api/drafts", authenticateToken, async (req, res) => {
         paintOption || null,
         account || null,
         billTo || null,
+        jobsiteAddress || null,              // ✅
         designServicesPrice || 0,
         assemblyFlag,
-        JSON.stringify(items),  // Store as JSON
+        poNumber || null,                    // ✅
+        JSON.stringify(items),
         subtotal || null,
         tax || null,
         shipping !== undefined ? shipping : null,
@@ -2789,12 +3014,43 @@ app.post("/api/drafts", authenticateToken, async (req, res) => {
       draftId: result.insertId,
     });
   } catch (err) {
-    console.error('Error saving draft:', err);
+    console.error("Error saving draft:", err);
     res.status(500).json({ error: "Error saving draft" });
   }
 });
 
+
+
 // GET /api/drafts - Fetch current user's drafts (no :userId needed, use token)
+// app.get("/api/drafts", authenticateToken, async (req, res) => {
+//   const userId = req.user.id;
+
+//   try {
+//     const [drafts] = await pool.query(
+//       "SELECT * FROM draft_orders WHERE user_id = ? ORDER BY updated_at DESC",
+//       [userId]
+//     );
+
+//     const parsedDrafts = drafts.map(draft => {
+//       let items = [];
+//       try {
+//         items = typeof draft.items === "string" ? JSON.parse(draft.items) : draft.items;
+//       } catch (err) {
+//         console.error("Failed to parse draft items:", draft.id, draft.items);
+//         items = [];
+//       }
+//       return { ...draft, items };
+//     });
+
+//     res.json(parsedDrafts);
+//   } catch (err) {
+//     console.error("Error fetching drafts:", err);
+//     res.status(500).json({ error: "Error fetching drafts" });
+//   }
+// });
+
+
+
 app.get("/api/drafts", authenticateToken, async (req, res) => {
   const userId = req.user.id;
 
@@ -2804,15 +3060,23 @@ app.get("/api/drafts", authenticateToken, async (req, res) => {
       [userId]
     );
 
-    const parsedDrafts = drafts.map(draft => {
+    const parsedDrafts = drafts.map((draft) => {
       let items = [];
       try {
-        items = typeof draft.items === "string" ? JSON.parse(draft.items) : draft.items;
+        items =
+          typeof draft.items === "string"
+            ? JSON.parse(draft.items)
+            : draft.items;
       } catch (err) {
         console.error("Failed to parse draft items:", draft.id, draft.items);
         items = [];
       }
-      return { ...draft, items };
+      return {
+        ...draft,
+        items,
+        poNumber: draft.po_number || null,            // ✅ camelCase for frontend
+        jobsiteAddress: draft.jobsite_address || "",  // ✅ camelCase for frontend
+      };
     });
 
     res.json(parsedDrafts);
@@ -2840,6 +3104,91 @@ app.get('/api/count', authenticateToken, async (req, res) => {
 
 
 // PUT /api/drafts/:id - Update a draft
+// app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
+//   const draftId = req.params.id;
+//   const {
+//     doorStyle,
+//     finishType,
+//     stainOption,
+//     paintOption,
+//     account,
+//     billTo,
+//     items,
+//     designServicesPrice,
+//     assemblyFlag,
+//     subtotal,
+//     tax,
+//     shipping,
+//     total,
+//     discount,
+//   } = req.body;
+
+//   try {
+//     const userId = req.user.id;
+
+//     // Check ownership
+//     const [draft] = await pool.query(
+//       "SELECT user_id FROM draft_orders WHERE id = ?",
+//       [draftId]
+//     );
+//     if (draft.length === 0 || draft[0].user_id !== userId) {
+//       return res.status(403).json({ error: "Unauthorized or draft not found" });
+//     }
+
+//     // Basic validations (similar to POST)
+//     if (!Array.isArray(items)) {
+//       return res.status(400).json({ error: "Items must be an array" });
+//     }
+//     if (!doorStyle || !finishType) {
+//       return res.status(400).json({ error: "Door style and finish type are required" });
+//     }
+//     if (finishType === "Stained" && !stainOption) {
+//       return res.status(400).json({ error: "Stain option is required for stained finish" });
+//     }
+//     if (finishType === "Painted" && !paintOption) {
+//       return res.status(400).json({ error: "Paint option is required for painted finish" });
+//     }
+//     if (designServicesPrice < 0) {
+//       return res.status(400).json({ error: "Design services price cannot be negative" });
+//     }
+//     if (!["Included", "Not Included"].includes(assemblyFlag)) {
+//       return res.status(400).json({ error: "Assembly flag must be 'Included' or 'Not Included'" });
+//     }
+
+//     await pool.query(
+//       `UPDATE draft_orders SET 
+//         door_style = ?, finish_type = ?, stain_option = ?, paint_option = ?, 
+//         account = ?, bill_to = ?, design_services_price = ?, assembly_flag = ?, 
+//         items = ?, subtotal = ?, tax = ?, shipping = ?, discount = ?, total = ?,
+//         updated_at = NOW()
+//       WHERE id = ?`,
+//       [
+//         doorStyle,
+//         finishType,
+//         stainOption || null,
+//         paintOption || null,
+//         account || null,
+//         billTo || null,
+//         designServicesPrice || 0,
+//         assemblyFlag,
+//         JSON.stringify(items),
+//         subtotal || null,
+//         tax || null,
+//         shipping !== undefined ? shipping : null,
+//         discount || null,
+//         total || null,
+//         draftId,
+//       ]
+//     );
+
+//     res.json({ message: "Draft updated successfully" });
+//   } catch (err) {
+//     console.error('Error updating draft:', err);
+//     res.status(500).json({ error: "Error updating draft" });
+//   }
+// });
+
+
 app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
   const draftId = req.params.id;
   const {
@@ -2857,6 +3206,8 @@ app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
     shipping,
     total,
     discount,
+    poNumber,        // ✅ NEW
+    jobsiteAddress,  // ✅ NEW
   } = req.body;
 
   try {
@@ -2876,26 +3227,49 @@ app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "Items must be an array" });
     }
     if (!doorStyle || !finishType) {
-      return res.status(400).json({ error: "Door style and finish type are required" });
+      return res
+        .status(400)
+        .json({ error: "Door style and finish type are required" });
     }
     if (finishType === "Stained" && !stainOption) {
-      return res.status(400).json({ error: "Stain option is required for stained finish" });
+      return res
+        .status(400)
+        .json({ error: "Stain option is required for stained finish" });
     }
     if (finishType === "Painted" && !paintOption) {
-      return res.status(400).json({ error: "Paint option is required for painted finish" });
+      return res
+        .status(400)
+        .json({ error: "Paint option is required for painted finish" });
     }
     if (designServicesPrice < 0) {
-      return res.status(400).json({ error: "Design services price cannot be negative" });
+      return res
+        .status(400)
+        .json({ error: "Design services price cannot be negative" });
     }
     if (!["Included", "Not Included"].includes(assemblyFlag)) {
-      return res.status(400).json({ error: "Assembly flag must be 'Included' or 'Not Included'" });
+      return res.status(400).json({
+        error: "Assembly flag must be 'Included' or 'Not Included'",
+      });
     }
 
     await pool.query(
       `UPDATE draft_orders SET 
-        door_style = ?, finish_type = ?, stain_option = ?, paint_option = ?, 
-        account = ?, bill_to = ?, design_services_price = ?, assembly_flag = ?, 
-        items = ?, subtotal = ?, tax = ?, shipping = ?, discount = ?, total = ?,
+        door_style = ?, 
+        finish_type = ?, 
+        stain_option = ?, 
+        paint_option = ?, 
+        account = ?, 
+        bill_to = ?, 
+        jobsite_address = ?,          -- ✅
+        design_services_price = ?, 
+        assembly_flag = ?, 
+        po_number = ?,                -- ✅
+        items = ?, 
+        subtotal = ?, 
+        tax = ?, 
+        shipping = ?, 
+        discount = ?, 
+        total = ?,
         updated_at = NOW()
       WHERE id = ?`,
       [
@@ -2905,8 +3279,10 @@ app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
         paintOption || null,
         account || null,
         billTo || null,
+        jobsiteAddress || null,       // ✅
         designServicesPrice || 0,
         assemblyFlag,
+        poNumber || null,             // ✅
         JSON.stringify(items),
         subtotal || null,
         tax || null,
@@ -2919,10 +3295,12 @@ app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
 
     res.json({ message: "Draft updated successfully" });
   } catch (err) {
-    console.error('Error updating draft:', err);
+    console.error("Error updating draft:", err);
     res.status(500).json({ error: "Error updating draft" });
   }
 });
+
+
 
 // DELETE /api/drafts/:id - Delete a draft
 app.delete("/api/drafts/:id", authenticateToken, async (req, res) => {
@@ -5774,6 +6152,7 @@ app.post("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
 });
 
 // PUT /api/admin/orders/:id/shipping (fallback)
+
 app.put(
   "/api/admin/orders/:id/shipping",
   adminauthenticateToken,
@@ -5938,30 +6317,472 @@ app.put(
   }
 );
 
-async function generateInvoiceNumbers(connection) {
-  // Get last invoice number (only digits)
-  const [rows] = await connection.query(
-    `SELECT invoice_number 
-     FROM invoices 
-     WHERE invoice_number REGEXP '^[0-9]+$'
-     ORDER BY CAST(invoice_number AS UNSIGNED) DESC 
-     LIMIT 1`
-  );
+// async function generateInvoiceNumbers(connection) {
+//   // Get last invoice number (only digits)
+//   const [rows] = await connection.query(
+//     `SELECT invoice_number 
+//      FROM invoices 
+//      WHERE invoice_number REGEXP '^[0-9]+$'
+//      ORDER BY CAST(invoice_number AS UNSIGNED) DESC 
+//      LIMIT 1`
+//   );
 
-  let nextNumber = 100001;
+//   let nextNumber = 100001;
 
-  if (rows.length > 0) {
-    const last = parseInt(rows[0].invoice_number, 10);
-    if (!isNaN(last) && last >= 100001) {
-      nextNumber = last + 1;
-    }
-  }
+//   if (rows.length > 0) {
+//     const last = parseInt(rows[0].invoice_number, 10);
+//     if (!isNaN(last) && last >= 100001) {
+//       nextNumber = last + 1;
+//     }
+//   }
 
-  return String(nextNumber);
+//   return String(nextNumber);
+// }
+
+// app.put("/api/admin/orders/:id/status",
+//   adminauthenticateToken,
+//   async (req, res) => {
+//     const { id } = req.params;
+//     const { status } = req.body;
+//     let connection;
+
+//     // Validate status
+//     if (
+//       !["Pending", "Accepted", "Processing", "Completed", "Cancelled"].includes(
+//         status
+//       )
+//     ) {
+//       return res.status(400).json({
+//         error:
+//           "Invalid status. Must be Pending, Accepted, Processing, Completed, or Cancelled",
+//       });
+//     }
+
+//     try {
+//       // Start transaction
+//       connection = await pool.getConnection();
+//       await connection.beginTransaction();
+
+//       // Fetch order details
+//       const [orders] = await connection.query(
+//         `SELECT o.id, o.order_id, o.user_id, o.door_style, o.finish_type, o.stain_option, o.paint_option, 
+//               o.subtotal, o.tax, o.shipping, o.discount, o.additional_discount, o.total, o.status, 
+//               u.full_name, u.email 
+//        FROM orders o 
+//        LEFT JOIN users u ON o.user_id = u.id 
+//        WHERE o.id = ?`,
+//         [id]
+//       );
+
+//       if (orders.length === 0) {
+//         await connection.rollback();
+//         connection.release();
+//         return res.status(404).json({ error: "Order not found" });
+//       }
+
+//       const order = orders[0];
+
+//       // Prevent updating a cancelled order
+//       if (order.status === "Cancelled") {
+//         await connection.rollback();
+//         connection.release();
+//         return res.status(400).json({
+//           error: "Cannot update status of a cancelled order",
+//         });
+//       }
+
+//       const user = {
+//         full_name: order.full_name || "Customer",
+//         email: order.email || "N/A",
+//       };
+//       const additionalDiscountPercent =
+//         order.subtotal && order.additional_discount
+//           ? ((order.additional_discount / order.subtotal) * 100).toFixed(2)
+//           : "0.00";
+
+//       // If status is Cancelled, restore item quantities
+//       if (status === "Cancelled") {
+//         // Fetch order items
+//         const [orderItems] = await connection.query(
+//           `SELECT sku, quantity 
+//          FROM order_items 
+//          WHERE order_id = ?`,
+//           [order.id]
+//         );
+
+//         // Update qty in items table for each order item
+//         for (const item of orderItems) {
+//           const [itemResult] = await connection.query(
+//             `SELECT id FROM items WHERE sku = ?`,
+//             [item.sku]
+//           );
+
+//           if (itemResult.length === 0) {
+//             await connection.rollback();
+//             connection.release();
+//             return res.status(400).json({
+//               error: `Item with SKU ${item.sku} not found in inventory`,
+//             });
+//           }
+
+//           await connection.query(
+//             `UPDATE items SET qty = qty + ? WHERE sku = ?`,
+//             [item.quantity, item.sku]
+//           );
+//         }
+//       }
+
+//       // Update order status
+//       await connection.query("UPDATE orders SET status = ? WHERE id = ?", [
+//         status,
+//         id,
+//       ]);
+
+//       // Generate invoice if status is Completed
+//       let invoiceNumber = null;
+//       if (status === "Completed") {
+//         // invoiceNumber = `INV-${order.order_id}-${Date.now()}`;
+//         invoiceNumber = await generateInvoiceNumbers(connection);
+
+//         await connection.query(
+//           `INSERT INTO invoices (invoice_number, order_id, user_id, subtotal, tax, shipping, discount, additional_discount, total)
+//          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+//           [
+//             invoiceNumber,
+//             order.id,
+//             order.user_id,
+//             order.subtotal,
+//             order.tax,
+//             order.shipping,
+//             order.discount,
+//             order.additional_discount,
+//             order.total,
+//           ]
+//         );
+//       }
+
+//       // Fetch order items for email
+//       const [orderItems] = await connection.query(
+//         `SELECT sku, name, quantity, door_style, finish, price, total_amount 
+//        FROM order_items 
+//        WHERE order_id = ?`,
+//         [order.id]
+//       );
+
+//       // Commit transaction
+//       await connection.commit();
+//       connection.release();
+
+//       // Send email for status updates
+//       if (
+//         ["Accepted", "Processing", "Completed", "Cancelled"].includes(status) &&
+//         user.email !== "N/A"
+//       ) {
+//         let mailOptions;
+//         switch (status) {
+//           case "Completed":
+//             mailOptions = {
+//               from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//               to: user.email,
+//               subject: `Your Order #${order.order_id} Has Been Completed! Invoice #${invoiceNumber}`,
+//               html: `
+//               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+//                 <h2>Hello, ${user.full_name}!</h2>
+//                 <p>Fantastic news! Your order <strong>#${
+//                   order.order_id
+//                 }</strong> has been completed and shipped.</p>
+//                 <p>Your invoice <strong>#${invoiceNumber}</strong> is now available in your customer portal.</p>
+//                 <h3>Invoice Details:</h3>
+//                 <table style="width: 100%; border-collapse: collapse;">
+//                   <thead>
+//                     <tr style="background-color: #f2f2f2;">
+//                       <th style="border: 1px solid #ddd; padding: 8px;">SKU</th>
+//                       <th style="border: 1px solid #ddd; padding: 8px;">Name</th>
+//                       <th style="border: 1px solid #ddd; padding: 8px;">Quantity</th>
+//                       <th style="border: 1px solid #ddd; padding: 8px;">Price</th>
+//                       <th style="border: 1px solid #ddd; padding: 8px;">Total</th>
+//                     </tr>
+//                   </thead>
+//                   <tbody>
+//                     ${orderItems
+//                       .map(
+//                         (item) => `
+//                       <tr>
+//                         <td style="border: 1px solid #ddd; padding: 8px;">${
+//                           item.sku
+//                         }</td>
+//                         <td style="border: 1px solid #ddd; padding: 8px;">${
+//                           item.name
+//                         }</td>
+//                         <td style="border: 1px solid #ddd; padding: 8px;">${
+//                           item.quantity
+//                         }</td>
+//                         <td style="border: 1px solid #ddd; padding: 8px;">$${parseFloat(
+//                           item.price || 0
+//                         ).toFixed(2)}</td>
+//                         <td style="border: 1px solid #ddd; padding: 8px;">$${parseFloat(
+//                           item.total_amount || 0
+//                         ).toFixed(2)}</td>
+//                       </tr>
+//                     `
+//                       )
+//                       .join("")}
+//                   </tbody>
+//                 </table>
+//                 <h3 style="margin-top: 20px;">Summary:</h3>
+//                 <ul style="list-style: none; padding: 0;">
+//                   <li><strong>Subtotal:</strong> $${parseFloat(
+//                     order.subtotal
+//                   ).toFixed(2)}</li>
+//                   <li><strong>Special Discount:</strong> $${parseFloat(
+//                     order.discount || 0
+//                   ).toFixed(2)}</li>
+//                   <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(
+//                 order.additional_discount || 0
+//               ).toFixed(2)})</li>
+//                   <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(
+//                     2
+//                   )}</li>
+//                   <li><strong>Shipping:</strong> ${
+//                     order.shipping !== null
+//                       ? `$${parseFloat(order.shipping).toFixed(2)}`
+//                       : "-"
+//                   }</li>
+//                   <li><strong>Total:</strong> $${parseFloat(
+//                     order.total
+//                   ).toFixed(2)}</li>
+//                 </ul>
+//                 <p><strong>Next Steps:</strong></p>
+//                 <ul>
+//                   <li>Your order has been shipped. Check your email for tracking information.</li>
+//                   <li>View your invoice at <a href="https://studiosignaturecabinets.com/customer/invoices">My Invoices</a>.</li>
+//                 </ul>
+//                 <p>If you have any issues, contact us at <a href="mailto:info@studiosignaturecabinets.com">info@studiosignaturecabinets.com</a>.</p>
+//                 <p>Enjoy your new cabinets!</p>
+//                 <p>Best regards,<br>Team Studio Signature Cabinets</p>
+//               </div>
+//             `,
+//             };
+//             break;
+//           case "Accepted":
+//             mailOptions = {
+//               from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//               to: user.email,
+//               subject: `Your Order #${order.order_id} Has Been Accepted!`,
+//               html: `
+//               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+//                 <h2>Hello, ${user.full_name}!</h2>
+//                 <p>Great news! Your order <strong>#${
+//                   order.order_id
+//                 }</strong> has been accepted and is now being processed.</p>
+//                 <h3>Order Details:</h3>
+//                 <ul style="list-style: none; padding: 0;">
+//                   <li><strong>Order ID:</strong> ${order.order_id}</li>
+//                   <li><strong>Door Style:</strong> ${order.door_style}</li>
+//                   <li><strong>Finish Type:</strong> ${order.finish_type}</li>
+//                   ${
+//                     order.stain_option
+//                       ? `<li><strong>Stain Option:</strong> ${order.stain_option}</li>`
+//                       : ""
+//                   }
+//                   ${
+//                     order.paint_option
+//                       ? `<li><strong>Paint Option:</strong> ${order.paint_option}</li>`
+//                       : ""
+//                   }
+//                   <li><strong>Subtotal:</strong> $${parseFloat(
+//                     order.subtotal
+//                   ).toFixed(2)}</li>
+//                   <li><strong>Special Discount:</strong> $${parseFloat(
+//                     order.discount || 0
+//                   ).toFixed(2)}</li>
+//                   <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(
+//                 order.additional_discount || 0
+//               ).toFixed(2)})</li>
+//                   <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(
+//                     2
+//                   )}</li>
+//                   <li><strong>Shipping:</strong> ${
+//                     order.shipping !== null
+//                       ? `$${parseFloat(order.shipping).toFixed(2)}`
+//                       : "-"
+//                   }</li>
+//                   <li><strong>Total:</strong> $${parseFloat(
+//                     order.total
+//                   ).toFixed(2)}</li>
+//                 </ul>
+//                 <p><strong>Next Steps:</strong></p>
+//                 <ul>
+//                   <li>Your order is now in the processing stage. We’ll notify you with updates on its progress.</li>
+//                   <li>You can track your order status in your account at <a href="https://studiosignaturecabinets.com/customer/orders">My Orders</a>.</li>
+//                 </ul>
+//                 <p>If you have any questions, please contact our support team at <a href="mailto:info@studiosignaturecabinets.com">info@studiosignaturecabinets.com</a>.</p>
+//                 <p>Thank you for choosing Studio Signature Cabinets!</p>
+//                 <p>Best regards,<br>Team Studio Signature Cabinets</p>
+//               </div>
+//             `,
+//             };
+//             break;
+//           case "Processing":
+//             mailOptions = {
+//               from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//               to: user.email,
+//               subject: `Your Order #${order.order_id} is Being Processed!`,
+//               html: `
+//               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+//                 <h2>Hello, ${user.full_name}!</h2>
+//                 <p>Your order <strong>#${
+//                   order.order_id
+//                 }</strong> is now being processed. We're preparing your items for shipment.</p>
+//                 <h3>Order Details:</h3>
+//                 <ul style="list-style: none; padding: 0;">
+//                   <li><strong>Order ID:</strong> ${order.order_id}</li>
+//                   <li><strong>Door Style:</strong> ${order.door_style}</li>
+//                   <li><strong>Finish Type:</strong> ${order.finish_type}</li>
+//                   ${
+//                     order.stain_option
+//                       ? `<li><strong>Stain Option:</strong> ${order.stain_option}</li>`
+//                       : ""
+//                   }
+//                   ${
+//                     order.paint_option
+//                       ? `<li><strong>Paint Option:</strong> ${order.paint_option}</li>`
+//                       : ""
+//                   }
+//                   <li><strong>Subtotal:</strong> $${parseFloat(
+//                     order.subtotal
+//                   ).toFixed(2)}</li>
+//                   <li><strong>Special Discount:</strong> $${parseFloat(
+//                     order.discount || 0
+//                   ).toFixed(2)}</li>
+//                   <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(
+//                 order.additional_discount || 0
+//               ).toFixed(2)})</li>
+//                   <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(
+//                     2
+//                   )}</li>
+//                   <li><strong>Shipping:</strong> ${
+//                     order.shipping !== null
+//                       ? `$${parseFloat(order.shipping).toFixed(2)}`
+//                       : "-"
+//                   }</li>
+//                   <li><strong>Total:</strong> $${parseFloat(
+//                     order.total
+//                   ).toFixed(2)}</li>
+//                 </ul>
+//                 <p><strong>Next Steps:</strong></p>
+//                 <ul>
+//                   <li>We are preparing your order for shipment. You’ll receive a shipping confirmation soon.</li>
+//                   <li>Track your order status at <a href="https://studiosignaturecabinets.com/customer/orders">My Orders</a>.</li>
+//                 </ul>
+//                 <p>For inquiries, contact us at <a href="mailto:info@studiosignaturecabinets.com">info@studiosignaturecabinets.com</a>.</p>
+//                 <p>Thank you for your patience!</p>
+//                 <p>Best regards,<br>Team Studio Signature Cabinets</p>
+//               </div>
+//             `,
+//             };
+//             break;
+//           case "Cancelled":
+//             mailOptions = {
+//               from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//               to: user.email,
+//               subject: `Your Order #${order.order_id} Has Been Cancelled`,
+//               html: `
+//               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+//                 <h2>Hello, ${user.full_name}!</h2>
+//                 <p>We’re sorry to inform you that your order <strong>#${
+//                   order.order_id
+//                 }</strong> has been cancelled.</p>
+//                 <p><strong>Note:</strong> This order cannot be reinstated or modified once cancelled.</p>
+//                 <h3>Order Details:</h3>
+//                 <ul style="list-style: none; padding: 0;">
+//                   <li><strong>Order ID:</strong> ${order.order_id}</li>
+//                   <li><strong>Door Style:</strong> ${order.door_style}</li>
+//                   <li><strong>Finish Type:</strong> ${order.finish_type}</li>
+//                   ${
+//                     order.stain_option
+//                       ? `<li><strong>Stain Option:</strong> ${order.stain_option}</li>`
+//                       : ""
+//                   }
+//                   ${
+//                     order.paint_option
+//                       ? `<li><strong>Paint Option:</strong> ${order.paint_option}</li>`
+//                       : ""
+//                   }
+//                   <li><strong>Subtotal:</strong> $${parseFloat(
+//                     order.subtotal
+//                   ).toFixed(2)}</li>
+//                   <li><strong>Special Discount:</strong> $${parseFloat(
+//                     order.discount || 0
+//                   ).toFixed(2)}</li>
+//                   <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(
+//                 order.additional_discount || 0
+//               ).toFixed(2)})</li>
+//                   <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(
+//                     2
+//                   )}</li>
+//                   <li><strong>Shipping:</strong> ${
+//                     order.shipping !== null
+//                       ? `$${parseFloat(order.shipping).toFixed(2)}`
+//                       : "-"
+//                   }</li>
+//                   <li><strong>Total:</strong> $${parseFloat(
+//                     order.total
+//                   ).toFixed(2)}</li>
+//                 </ul>
+//                 <p><strong>Next Steps:</strong></p>
+//                 <ul>
+//                   <li>If this was unexpected, please contact us immediately at <a href="mailto:info@studiosignaturecabinets.com">info@studiosignaturecabinets.com</a>.</li>
+//                   <li>Explore our products to place a new order at <a href="https://studiosignaturecabinets.com">Studio Signature Cabinets</a>.</li>
+//                 </ul>
+//                 <p>We apologize for any inconvenience. Let us know how we can assist you further.</p>
+//                 <p>Best regards,<br>Team Studio Signature Cabinets</p>
+//               </div>
+//             `,
+//             };
+//             break;
+//         }
+
+//         try {
+//           await transporter.sendMail(mailOptions);
+//           console.log(
+//             `Email sent for order ${order.order_id} status: ${status}`
+//           );
+//         } catch (emailErr) {
+//           console.error(`Failed to send email for ${status} status:`, emailErr);
+//         }
+//       }
+
+//       res.json({ message: "Order status updated successfully" });
+//     } catch (err) {
+//       if (connection) {
+//         await connection.rollback();
+//         connection.release();
+//       }
+//       console.error("Server error:", err);
+//       res.status(500).json({ error: "Server error" });
+//     } finally {
+//       if (connection) {
+//         connection.release();
+//       }
+//     }
+//   }
+// );
+
+
+
+// ✅ New generateInvoiceNumbers – based on order_id, not DB auto-increment
+async function generateInvoiceNumbers(orderId) {
+  // Example orderId: "S-ORD101335"
+  // Extract only the numeric portion
+  const numberPart = orderId.replace(/[^0-9]/g, ""); // → "101335"
+
+  // Build invoice number: INV-101335
+  return `INV-${numberPart}`;
 }
 
-
-app.put("/api/admin/orders/:id/status",
+app.put(
+  "/api/admin/orders/:id/status",
   adminauthenticateToken,
   async (req, res) => {
     const { id } = req.params;
@@ -5988,11 +6809,11 @@ app.put("/api/admin/orders/:id/status",
       // Fetch order details
       const [orders] = await connection.query(
         `SELECT o.id, o.order_id, o.user_id, o.door_style, o.finish_type, o.stain_option, o.paint_option, 
-              o.subtotal, o.tax, o.shipping, o.discount, o.additional_discount, o.total, o.status, 
-              u.full_name, u.email 
-       FROM orders o 
-       LEFT JOIN users u ON o.user_id = u.id 
-       WHERE o.id = ?`,
+                o.subtotal, o.tax, o.shipping, o.discount, o.additional_discount, o.total, o.status, 
+                u.full_name, u.email 
+         FROM orders o 
+         LEFT JOIN users u ON o.user_id = u.id 
+         WHERE o.id = ?`,
         [id]
       );
 
@@ -6017,6 +6838,7 @@ app.put("/api/admin/orders/:id/status",
         full_name: order.full_name || "Customer",
         email: order.email || "N/A",
       };
+
       const additionalDiscountPercent =
         order.subtotal && order.additional_discount
           ? ((order.additional_discount / order.subtotal) * 100).toFixed(2)
@@ -6027,8 +6849,8 @@ app.put("/api/admin/orders/:id/status",
         // Fetch order items
         const [orderItems] = await connection.query(
           `SELECT sku, quantity 
-         FROM order_items 
-         WHERE order_id = ?`,
+           FROM order_items 
+           WHERE order_id = ?`,
           [order.id]
         );
 
@@ -6063,12 +6885,14 @@ app.put("/api/admin/orders/:id/status",
       // Generate invoice if status is Completed
       let invoiceNumber = null;
       if (status === "Completed") {
-        // invoiceNumber = `INV-${order.order_id}-${Date.now()}`;
-        invoiceNumber = await generateInvoiceNumbers(connection);
+        // ✅ Use order.order_id to generate invoice
+        // e.g. order.order_id = "S-ORD101335" → invoiceNumber = "INV-101335"
+        invoiceNumber = await generateInvoiceNumbers(order.order_id);
 
         await connection.query(
-          `INSERT INTO invoices (invoice_number, order_id, user_id, subtotal, tax, shipping, discount, additional_discount, total)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO invoices 
+             (invoice_number, order_id, user_id, subtotal, tax, shipping, discount, additional_discount, total)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             invoiceNumber,
             order.id,
@@ -6086,8 +6910,8 @@ app.put("/api/admin/orders/:id/status",
       // Fetch order items for email
       const [orderItems] = await connection.query(
         `SELECT sku, name, quantity, door_style, finish, price, total_amount 
-       FROM order_items 
-       WHERE order_id = ?`,
+         FROM order_items 
+         WHERE order_id = ?`,
         [order.id]
       );
 
@@ -6110,9 +6934,7 @@ app.put("/api/admin/orders/:id/status",
               html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h2>Hello, ${user.full_name}!</h2>
-                <p>Fantastic news! Your order <strong>#${
-                  order.order_id
-                }</strong> has been completed and shipped.</p>
+                <p>Fantastic news! Your order <strong>#${order.order_id}</strong> has been completed and shipped.</p>
                 <p>Your invoice <strong>#${invoiceNumber}</strong> is now available in your customer portal.</p>
                 <h3>Invoice Details:</h3>
                 <table style="width: 100%; border-collapse: collapse;">
@@ -6130,15 +6952,9 @@ app.put("/api/admin/orders/:id/status",
                       .map(
                         (item) => `
                       <tr>
-                        <td style="border: 1px solid #ddd; padding: 8px;">${
-                          item.sku
-                        }</td>
-                        <td style="border: 1px solid #ddd; padding: 8px;">${
-                          item.name
-                        }</td>
-                        <td style="border: 1px solid #ddd; padding: 8px;">${
-                          item.quantity
-                        }</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">${item.sku}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">${item.quantity}</td>
                         <td style="border: 1px solid #ddd; padding: 8px;">$${parseFloat(
                           item.price || 0
                         ).toFixed(2)}</td>
@@ -6153,26 +6969,18 @@ app.put("/api/admin/orders/:id/status",
                 </table>
                 <h3 style="margin-top: 20px;">Summary:</h3>
                 <ul style="list-style: none; padding: 0;">
-                  <li><strong>Subtotal:</strong> $${parseFloat(
-                    order.subtotal
-                  ).toFixed(2)}</li>
-                  <li><strong>Special Discount:</strong> $${parseFloat(
-                    order.discount || 0
-                  ).toFixed(2)}</li>
+                  <li><strong>Subtotal:</strong> $${parseFloat(order.subtotal).toFixed(2)}</li>
+                  <li><strong>Special Discount:</strong> $${parseFloat(order.discount || 0).toFixed(2)}</li>
                   <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(
-                order.additional_discount || 0
-              ).toFixed(2)})</li>
-                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(
-                    2
-                  )}</li>
+                    order.additional_discount || 0
+                  ).toFixed(2)})</li>
+                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(2)}</li>
                   <li><strong>Shipping:</strong> ${
                     order.shipping !== null
                       ? `$${parseFloat(order.shipping).toFixed(2)}`
                       : "-"
                   }</li>
-                  <li><strong>Total:</strong> $${parseFloat(
-                    order.total
-                  ).toFixed(2)}</li>
+                  <li><strong>Total:</strong> $${parseFloat(order.total).toFixed(2)}</li>
                 </ul>
                 <p><strong>Next Steps:</strong></p>
                 <ul>
@@ -6186,6 +6994,7 @@ app.put("/api/admin/orders/:id/status",
             `,
             };
             break;
+
           case "Accepted":
             mailOptions = {
               from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
@@ -6194,9 +7003,7 @@ app.put("/api/admin/orders/:id/status",
               html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h2>Hello, ${user.full_name}!</h2>
-                <p>Great news! Your order <strong>#${
-                  order.order_id
-                }</strong> has been accepted and is now being processed.</p>
+                <p>Great news! Your order <strong>#${order.order_id}</strong> has been accepted and is now being processed.</p>
                 <h3>Order Details:</h3>
                 <ul style="list-style: none; padding: 0;">
                   <li><strong>Order ID:</strong> ${order.order_id}</li>
@@ -6212,26 +7019,18 @@ app.put("/api/admin/orders/:id/status",
                       ? `<li><strong>Paint Option:</strong> ${order.paint_option}</li>`
                       : ""
                   }
-                  <li><strong>Subtotal:</strong> $${parseFloat(
-                    order.subtotal
-                  ).toFixed(2)}</li>
-                  <li><strong>Special Discount:</strong> $${parseFloat(
-                    order.discount || 0
-                  ).toFixed(2)}</li>
+                  <li><strong>Subtotal:</strong> $${parseFloat(order.subtotal).toFixed(2)}</li>
+                  <li><strong>Special Discount:</strong> $${parseFloat(order.discount || 0).toFixed(2)}</li>
                   <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(
-                order.additional_discount || 0
-              ).toFixed(2)})</li>
-                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(
-                    2
-                  )}</li>
+                    order.additional_discount || 0
+                  ).toFixed(2)})</li>
+                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(2)}</li>
                   <li><strong>Shipping:</strong> ${
                     order.shipping !== null
                       ? `$${parseFloat(order.shipping).toFixed(2)}`
                       : "-"
                   }</li>
-                  <li><strong>Total:</strong> $${parseFloat(
-                    order.total
-                  ).toFixed(2)}</li>
+                  <li><strong>Total:</strong> $${parseFloat(order.total).toFixed(2)}</li>
                 </ul>
                 <p><strong>Next Steps:</strong></p>
                 <ul>
@@ -6245,6 +7044,7 @@ app.put("/api/admin/orders/:id/status",
             `,
             };
             break;
+
           case "Processing":
             mailOptions = {
               from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
@@ -6253,9 +7053,7 @@ app.put("/api/admin/orders/:id/status",
               html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h2>Hello, ${user.full_name}!</h2>
-                <p>Your order <strong>#${
-                  order.order_id
-                }</strong> is now being processed. We're preparing your items for shipment.</p>
+                <p>Your order <strong>#${order.order_id}</strong> is now being processed. We're preparing your items for shipment.</p>
                 <h3>Order Details:</h3>
                 <ul style="list-style: none; padding: 0;">
                   <li><strong>Order ID:</strong> ${order.order_id}</li>
@@ -6271,26 +7069,18 @@ app.put("/api/admin/orders/:id/status",
                       ? `<li><strong>Paint Option:</strong> ${order.paint_option}</li>`
                       : ""
                   }
-                  <li><strong>Subtotal:</strong> $${parseFloat(
-                    order.subtotal
-                  ).toFixed(2)}</li>
-                  <li><strong>Special Discount:</strong> $${parseFloat(
-                    order.discount || 0
-                  ).toFixed(2)}</li>
+                  <li><strong>Subtotal:</strong> $${parseFloat(order.subtotal).toFixed(2)}</li>
+                  <li><strong>Special Discount:</strong> $${parseFloat(order.discount || 0).toFixed(2)}</li>
                   <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(
-                order.additional_discount || 0
-              ).toFixed(2)})</li>
-                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(
-                    2
-                  )}</li>
+                    order.additional_discount || 0
+                  ).toFixed(2)})</li>
+                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(2)}</li>
                   <li><strong>Shipping:</strong> ${
                     order.shipping !== null
                       ? `$${parseFloat(order.shipping).toFixed(2)}`
                       : "-"
                   }</li>
-                  <li><strong>Total:</strong> $${parseFloat(
-                    order.total
-                  ).toFixed(2)}</li>
+                  <li><strong>Total:</strong> $${parseFloat(order.total).toFixed(2)}</li>
                 </ul>
                 <p><strong>Next Steps:</strong></p>
                 <ul>
@@ -6304,6 +7094,7 @@ app.put("/api/admin/orders/:id/status",
             `,
             };
             break;
+
           case "Cancelled":
             mailOptions = {
               from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
@@ -6312,9 +7103,7 @@ app.put("/api/admin/orders/:id/status",
               html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h2>Hello, ${user.full_name}!</h2>
-                <p>We’re sorry to inform you that your order <strong>#${
-                  order.order_id
-                }</strong> has been cancelled.</p>
+                <p>We’re sorry to inform you that your order <strong>#${order.order_id}</strong> has been cancelled.</p>
                 <p><strong>Note:</strong> This order cannot be reinstated or modified once cancelled.</p>
                 <h3>Order Details:</h3>
                 <ul style="list-style: none; padding: 0;">
@@ -6331,26 +7120,18 @@ app.put("/api/admin/orders/:id/status",
                       ? `<li><strong>Paint Option:</strong> ${order.paint_option}</li>`
                       : ""
                   }
-                  <li><strong>Subtotal:</strong> $${parseFloat(
-                    order.subtotal
-                  ).toFixed(2)}</li>
-                  <li><strong>Special Discount:</strong> $${parseFloat(
-                    order.discount || 0
-                  ).toFixed(2)}</li>
+                  <li><strong>Subtotal:</strong> $${parseFloat(order.subtotal).toFixed(2)}</li>
+                  <li><strong>Special Discount:</strong> $${parseFloat(order.discount || 0).toFixed(2)}</li>
                   <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(
-                order.additional_discount || 0
-              ).toFixed(2)})</li>
-                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(
-                    2
-                  )}</li>
+                    order.additional_discount || 0
+                  ).toFixed(2)})</li>
+                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(2)}</li>
                   <li><strong>Shipping:</strong> ${
                     order.shipping !== null
                       ? `$${parseFloat(order.shipping).toFixed(2)}`
                       : "-"
                   }</li>
-                  <li><strong>Total:</strong> $${parseFloat(
-                    order.total
-                  ).toFixed(2)}</li>
+                  <li><strong>Total:</strong> $${parseFloat(order.total).toFixed(2)}</li>
                 </ul>
                 <p><strong>Next Steps:</strong></p>
                 <ul>
@@ -6390,6 +7171,13 @@ app.put("/api/admin/orders/:id/status",
     }
   }
 );
+
+
+
+
+
+
+
 
 cron.schedule("* * * * *", async () => {
   console.log(
