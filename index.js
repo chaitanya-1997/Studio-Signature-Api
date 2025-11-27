@@ -10742,6 +10742,57 @@ app.get("/api/admin/invoices", adminauthenticateToken, async (req, res) => {
   }
 });
 
+// Get customer profile for invoice by customer_id
+app.get("/api/invoice/profile", adminauthenticateToken, async (req, res) => {
+  try {
+    const { customer_id } = req.query;
+
+    if (!customer_id) {
+      return res.status(400).json({ error: "customer_id query param is required" });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT 
+         id,
+         full_name,
+         email,
+         phone,
+         company_name,
+         street,
+         city,
+         state,
+         postal_code
+       FROM users
+       WHERE id = ? AND user_type = 'customer'
+       LIMIT 1`,
+      [customer_id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
+    const user = rows[0];
+
+    // IMPORTANT: field names must match what frontend expects (fullName, company_name, email, phone)
+    res.json({
+      id: user.id,
+      fullName: user.full_name,
+      company_name: user.company_name,
+      email: user.email,
+      phone: user.phone,
+      street: user.street,
+      city: user.city,
+      state: user.state,
+      postal_code: user.postal_code,
+    });
+  } catch (err) {
+    console.error("Error in /api/invoice/profile:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
 // POST /api/admin/team
 app.post(
   "/api/admin/team",
