@@ -309,6 +309,231 @@ app.post('/api/send-email', async (req, res) => {
 
 //Signup API
 
+// app.post("/api/signup", async (req, res) => {
+//   const {
+//     userType,
+//     fullName,
+//     email,
+//     password,
+//     confirmPassword,
+//     businessName,
+//     taxId,
+//     phone,
+//     street,
+//     city,
+//     state,
+//     postalCode,
+//     agreeTerms,
+//   } = req.body;
+
+//   // Validate userType
+//   if (!userType || !["customer", "vendor"].includes(userType)) {
+//     return res.status(400).json({ error: "Invalid user type" });
+//   }
+
+//   // Required fields
+//   if (!fullName || !email || !password || !confirmPassword) {
+//     return res.status(400).json({ error: "Missing required fields" });
+//   }
+
+//   if (password !== confirmPassword) {
+//     return res.status(400).json({ error: "Passwords do not match" });
+//   }
+
+//   if (!agreeTerms) {
+//     return res.status(400).json({ error: "You must agree to the terms" });
+//   }
+
+//   if (userType === "vendor" && (!businessName || !taxId)) {
+//     return res.status(400).json({
+//       error: "Company name and tax ID are required for vendors",
+//     });
+//   }
+
+//   // Basic check for address fields presence
+//   if (!street || !city || !state || !postalCode) {
+//     return res.status(400).json({
+//       error:
+//         "Please provide complete address: street, city, state, and postal code",
+//     });
+//   }
+
+//   // Email validation (simple)
+//   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || /\s/.test(email)) {
+//     return res.status(400).json({ error: "Invalid email format" });
+//   }
+
+//   // Password validation (same rules as frontend)
+//   if (
+//     !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/.test(
+//       password
+//     ) ||
+//     /\s/.test(password)
+//   ) {
+//     return res.status(400).json({
+//       error:
+//         "Password must be at least 8 characters long and include uppercase, lowercase, number, special character, and no spaces",
+//     });
+//   }
+
+//   // Phone validation: allowing + and other characters, but exactly 10 digits
+//   const digitsOnly = phone.replace(/[^\d]/g, "");
+//   if (!/^\d{10}$/.test(digitsOnly)) {
+//     return res.status(400).json({
+//       error: "Phone number must contain exactly 10 digits",
+//     });
+//   }
+
+//   try {
+//     // Check for duplicate email in DB
+//     const [existingUsers] = await pool.query(
+//       "SELECT id FROM users WHERE email = ?",
+//       [email]
+//     );
+//     if (existingUsers.length > 0) {
+//       return res.status(400).json({ error: "Email already exists" });
+//     }
+
+//     // Hash password
+//     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
+//     // Insert into DB - using company_name for the single business/company field
+//     const [result] = await pool.query(
+//       `INSERT INTO users 
+//       (user_type, full_name, email, password, company_name, tax_id, phone, street, city, state, postal_code, is_active, created_at)
+//       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+//       [
+//         userType,
+//         fullName,
+//         email,
+//         hashedPassword,
+//         businessName || null, // Store in company_name column
+//         taxId || null,
+//         phone || null,
+//         street || null,
+//         city || null,
+//         state || null,
+//         postalCode || null,
+//         0, // pending approval
+//       ]
+//     );
+
+//     const userId = result.insertId;
+
+//     // Prepare user confirmation email
+//     const userMailOptions = {
+//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//       to: email,
+//       subject: "Thank You for Signing Up with Studio Signature Cabinets!",
+//       html: `
+//         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+//           <h2>Hello, ${fullName}!</h2>
+//           <p>Thank you for signing up as a <strong>${userType}</strong> with Studio Signature Cabinets. Your account is currently <strong>pending approval</strong> by our admin team.</p>
+//           <p><strong>What happens next?</strong></p>
+//           <ul>
+//             <li>Our team will review your signup details within 1-2 business days.</li>
+//             <li>Once approved, you will receive a confirmation email with instructions to log in and access your account.</li>
+//             <li>If you have any urgent questions, please contact our support team at <a href="mailto:info@studiosignaturecabinets.com">info@studiosignaturecabinets.com</a>.</li>
+//           </ul>
+//           <h3>Your Signup Details:</h3>
+//           <ul style="list-style: none; padding: 0;">
+//             <li><strong>Full Name:</strong> ${fullName}</li>
+//             <li><strong>Email:</strong> ${email}</li>
+//             <li><strong>Phone:</strong> ${phone || "N/A"}</li>
+//             <li><strong>Street:</strong> ${street || "N/A"}</li>
+//             <li><strong>City:</strong> ${city || "N/A"}</li>
+//             <li><strong>State:</strong> ${state || "N/A"}</li>
+//             <li><strong>Postal Code:</strong> ${postalCode || "N/A"}</li>
+//             ${
+//               businessName
+//                 ? `<li><strong>Company Name:</strong> ${businessName}</li>`
+//                 : ""
+//             }
+//             ${
+//               userType === "vendor" && taxId
+//                 ? `<li><strong>Tax ID:</strong> ${taxId}</li>`
+//                 : ""
+//             }
+//           </ul>
+//           <p>We're excited to have you join our community! You'll hear from us soon.</p>
+//           <p>Best regards,<br>Team Studio Signature Cabinets</p>
+//         </div>
+//       `,
+//     };
+
+//     // Admin notification email
+//     const adminMailOptions = {
+//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//       to: "sjingle@studiosignaturecabinets.com",
+//       subject: `New ${
+//         userType.charAt(0).toUpperCase() + userType.slice(1)
+//       } Signup Request - ${fullName}`,
+//       html: `
+//         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+//           <h2>New ${
+//             userType.charAt(0).toUpperCase() + userType.slice(1)
+//           } Signup Request</h2>
+//           <p>A new ${userType} has submitted a signup request on ${new Date().toLocaleDateString()}. Please review and approve or reject this user in the admin panel.</p>
+//           <h3>User Details:</h3>
+//           <ul style="list-style: none; padding: 0;">
+//             <li><strong>User ID:</strong> ${userId}</li>
+//             <li><strong>User Type:</strong> ${
+//               userType.charAt(0).toUpperCase() + userType.slice(1)
+//             }</li>
+//             <li><strong>Full Name:</strong> ${fullName}</li>
+//             <li><strong>Email:</strong> ${email}</li>
+//             <li><strong>Phone:</strong> ${phone || "N/A"}</li>
+//             <li><strong>Street:</strong> ${street || "N/A"}</li>
+//             <li><strong>City:</strong> ${city || "N/A"}</li>
+//             <li><strong>State:</strong> ${state || "N/A"}</li>
+//             <li><strong>Postal Code:</strong> ${postalCode || "N/A"}</li>
+//             ${
+//               businessName
+//                 ? `<li><strong>Company Name:</strong> ${businessName}</li>`
+//                 : ""
+//             }
+//             ${
+//               userType === "vendor" && taxId
+//                 ? `<li><strong>Tax ID:</strong> ${taxId}</li>`
+//                 : ""
+//             }
+//             <li><strong>Signup Date:</strong> ${new Date().toLocaleDateString()}</li>
+//             <li><strong>Status:</strong> Pending Approval</li>
+//           </ul>
+//           <p><strong>Action Required:</strong> Please review this user and update their status in the admin panel.</p>
+//           <p style="text-align: center;">
+//             <a href="https://studiosignaturecabinets.com/admin/login" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Review User</a>
+//           </p>
+//           <p>For further details, check the admin panel or contact the user directly at ${email}.</p>
+//         </div>
+//       `,
+//     };
+
+//     // Send emails
+//     try {
+//       await Promise.all([
+//         transporter.sendMail(userMailOptions),
+//         transporter.sendMail(adminMailOptions),
+//       ]);
+//     } catch (emailErr) {
+//       console.error("Email sending failed:", emailErr);
+//       return res.status(201).json({
+//         message:
+//           "Account created successfully, but email sending failed. Please contact support.",
+//       });
+//     }
+
+//     res.status(201).json({
+//       message:
+//         "Signup request submitted successfully. You will receive a confirmation email once your account is approved.",
+//     });
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// });
+
+
 app.post("/api/signup", async (req, res) => {
   const {
     userType,
@@ -326,12 +551,12 @@ app.post("/api/signup", async (req, res) => {
     agreeTerms,
   } = req.body;
 
-  // Validate userType
+  // ---------------- VALIDATIONS ----------------
+
   if (!userType || !["customer", "vendor"].includes(userType)) {
     return res.status(400).json({ error: "Invalid user type" });
   }
 
-  // Required fields
   if (!fullName || !email || !password || !confirmPassword) {
     return res.status(400).json({ error: "Missing required fields" });
   }
@@ -350,7 +575,6 @@ app.post("/api/signup", async (req, res) => {
     });
   }
 
-  // Basic check for address fields presence
   if (!street || !city || !state || !postalCode) {
     return res.status(400).json({
       error:
@@ -358,17 +582,14 @@ app.post("/api/signup", async (req, res) => {
     });
   }
 
-  // Email validation (simple)
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || /\s/.test(email)) {
     return res.status(400).json({ error: "Invalid email format" });
   }
 
-  // Password validation (same rules as frontend)
   if (
     !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/.test(
       password
-    ) ||
-    /\s/.test(password)
+    )
   ) {
     return res.status(400).json({
       error:
@@ -376,7 +597,6 @@ app.post("/api/signup", async (req, res) => {
     });
   }
 
-  // Phone validation: allowing + and other characters, but exactly 10 digits
   const digitsOnly = phone.replace(/[^\d]/g, "");
   if (!/^\d{10}$/.test(digitsOnly)) {
     return res.status(400).json({
@@ -384,30 +604,67 @@ app.post("/api/signup", async (req, res) => {
     });
   }
 
+  let connection;
+
   try {
-    // Check for duplicate email in DB
-    const [existingUsers] = await pool.query(
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // ---------------- DUPLICATE EMAIL CHECK ----------------
+
+    const [existingUsers] = await connection.query(
       "SELECT id FROM users WHERE email = ?",
       [email]
     );
+
     if (existingUsers.length > 0) {
+      await connection.rollback();
       return res.status(400).json({ error: "Email already exists" });
     }
 
-    // Hash password
+    // ---------------- PASSWORD HASH ----------------
+
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-    // Insert into DB - using company_name for the single business/company field
-    const [result] = await pool.query(
-      `INSERT INTO users 
-      (user_type, full_name, email, password, company_name, tax_id, phone, street, city, state, postal_code, is_active, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+    // ---------------- CUSTOMER CODE GENERATION ----------------
+
+    let customerCode = null;
+
+    if (userType === "customer") {
+      const [rows] = await connection.query(
+        `SELECT customer_code
+         FROM users
+         WHERE customer_code LIKE 'CUST%'
+         ORDER BY customer_code DESC
+         LIMIT 1
+         FOR UPDATE`
+      );
+
+      if (rows.length === 0) {
+        customerCode = "CUST001";
+      } else {
+        const lastNumber = parseInt(
+          rows[0].customer_code.replace("CUST", ""),
+          10
+        );
+        customerCode = `CUST${String(lastNumber + 1).padStart(3, "0")}`;
+      }
+    }
+
+    // ---------------- INSERT USER ----------------
+
+    const [result] = await connection.query(
+      `INSERT INTO users
+      (user_type, customer_code, full_name, email, password, company_name, tax_id,
+       phone, street, city, state, postal_code, is_active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         userType,
+        customerCode,
         fullName,
         email,
         hashedPassword,
-        businessName || null, // Store in company_name column
+        businessName || null,
         taxId || null,
         phone || null,
         street || null,
@@ -420,118 +677,68 @@ app.post("/api/signup", async (req, res) => {
 
     const userId = result.insertId;
 
-    // Prepare user confirmation email
+    await connection.commit();
+
+    // ---------------- EMAILS ----------------
+
     const userMailOptions = {
       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
       to: email,
       subject: "Thank You for Signing Up with Studio Signature Cabinets!",
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2>Hello, ${fullName}!</h2>
-          <p>Thank you for signing up as a <strong>${userType}</strong> with Studio Signature Cabinets. Your account is currently <strong>pending approval</strong> by our admin team.</p>
-          <p><strong>What happens next?</strong></p>
-          <ul>
-            <li>Our team will review your signup details within 1-2 business days.</li>
-            <li>Once approved, you will receive a confirmation email with instructions to log in and access your account.</li>
-            <li>If you have any urgent questions, please contact our support team at <a href="mailto:info@studiosignaturecabinets.com">info@studiosignaturecabinets.com</a>.</li>
-          </ul>
-          <h3>Your Signup Details:</h3>
-          <ul style="list-style: none; padding: 0;">
-            <li><strong>Full Name:</strong> ${fullName}</li>
-            <li><strong>Email:</strong> ${email}</li>
-            <li><strong>Phone:</strong> ${phone || "N/A"}</li>
-            <li><strong>Street:</strong> ${street || "N/A"}</li>
-            <li><strong>City:</strong> ${city || "N/A"}</li>
-            <li><strong>State:</strong> ${state || "N/A"}</li>
-            <li><strong>Postal Code:</strong> ${postalCode || "N/A"}</li>
-            ${
-              businessName
-                ? `<li><strong>Company Name:</strong> ${businessName}</li>`
-                : ""
-            }
-            ${
-              userType === "vendor" && taxId
-                ? `<li><strong>Tax ID:</strong> ${taxId}</li>`
-                : ""
-            }
-          </ul>
-          <p>We're excited to have you join our community! You'll hear from us soon.</p>
-          <p>Best regards,<br>Team Studio Signature Cabinets</p>
-        </div>
+        <h2>Hello, ${fullName}!</h2>
+        <p>Thank you for signing up as a <strong>${userType}</strong>.</p>
+        <p>Your account is <strong>pending admin approval</strong>.</p>
+        ${
+          customerCode
+            ? `<p><strong>Your Customer Code:</strong> ${customerCode}</p>`
+            : ""
+        }
       `,
     };
 
-    // Admin notification email
     const adminMailOptions = {
       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
       to: "sjingle@studiosignaturecabinets.com",
-      subject: `New ${
-        userType.charAt(0).toUpperCase() + userType.slice(1)
-      } Signup Request - ${fullName}`,
+      subject: `New ${userType} Signup - ${fullName}`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2>New ${
-            userType.charAt(0).toUpperCase() + userType.slice(1)
-          } Signup Request</h2>
-          <p>A new ${userType} has submitted a signup request on ${new Date().toLocaleDateString()}. Please review and approve or reject this user in the admin panel.</p>
-          <h3>User Details:</h3>
-          <ul style="list-style: none; padding: 0;">
-            <li><strong>User ID:</strong> ${userId}</li>
-            <li><strong>User Type:</strong> ${
-              userType.charAt(0).toUpperCase() + userType.slice(1)
-            }</li>
-            <li><strong>Full Name:</strong> ${fullName}</li>
-            <li><strong>Email:</strong> ${email}</li>
-            <li><strong>Phone:</strong> ${phone || "N/A"}</li>
-            <li><strong>Street:</strong> ${street || "N/A"}</li>
-            <li><strong>City:</strong> ${city || "N/A"}</li>
-            <li><strong>State:</strong> ${state || "N/A"}</li>
-            <li><strong>Postal Code:</strong> ${postalCode || "N/A"}</li>
-            ${
-              businessName
-                ? `<li><strong>Company Name:</strong> ${businessName}</li>`
-                : ""
-            }
-            ${
-              userType === "vendor" && taxId
-                ? `<li><strong>Tax ID:</strong> ${taxId}</li>`
-                : ""
-            }
-            <li><strong>Signup Date:</strong> ${new Date().toLocaleDateString()}</li>
-            <li><strong>Status:</strong> Pending Approval</li>
-          </ul>
-          <p><strong>Action Required:</strong> Please review this user and update their status in the admin panel.</p>
-          <p style="text-align: center;">
-            <a href="https://studiosignaturecabinets.com/admin/login" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Review User</a>
-          </p>
-          <p>For further details, check the admin panel or contact the user directly at ${email}.</p>
-        </div>
+        <h2>New Signup Request</h2>
+        <p><strong>User ID:</strong> ${userId}</p>
+        <p><strong>User Type:</strong> ${userType}</p>
+        ${
+          customerCode
+            ? `<p><strong>Customer Code:</strong> ${customerCode}</p>`
+            : ""
+        }
+        <p><strong>Name:</strong> ${fullName}</p>
+        <p><strong>Email:</strong> ${email}</p>
       `,
     };
 
-    // Send emails
     try {
       await Promise.all([
         transporter.sendMail(userMailOptions),
         transporter.sendMail(adminMailOptions),
       ]);
     } catch (emailErr) {
-      console.error("Email sending failed:", emailErr);
-      return res.status(201).json({
-        message:
-          "Account created successfully, but email sending failed. Please contact support.",
-      });
+      console.error("Email failed:", emailErr);
     }
 
     res.status(201).json({
       message:
-        "Signup request submitted successfully. You will receive a confirmation email once your account is approved.",
+        "Signup request submitted successfully. Await admin approval.",
     });
   } catch (err) {
-    console.error("Server error:", err);
+    if (connection) await connection.rollback();
+    console.error("Signup error:", err);
     res.status(500).json({ error: "Server error" });
+  } finally {
+    if (connection) connection.release();
   }
 });
+
+
+
 
 // Login API
 
