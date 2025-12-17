@@ -11902,56 +11902,168 @@ app.get("/api/invoice/profile", adminauthenticateToken, async (req, res) => {
 
 
 // POST /api/admin/team
+// app.post(
+//   "/api/admin/team",
+//   adminauthenticateToken,
+//   upload.single("photo"),
+//   async (req, res) => {
+//     try {
+//       const { name, email, phone, position } = req.body;
+
+//       // Validate required fields
+//       if (!name || !email || !phone || !position) {
+//         return res
+//           .status(400)
+//           .json({ error: "Name, email, phone, and position are required" });
+//       }
+
+//       // Validate email format
+//       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+//       if (!emailRegex.test(email)) {
+//         return res.status(400).json({ error: "Invalid email format" });
+//       }
+
+//       // Validate phone format (basic check for digits and common characters)
+//       const phoneRegex = /^\+?[\d\s-]{8,20}$/;
+//       if (!phoneRegex.test(phone)) {
+//         return res.status(400).json({ error: "Invalid phone number format" });
+//       }
+
+//       // Check if email already exists
+//       const [existing] = await pool.query(
+//         `SELECT id FROM team_members WHERE email = ?`,
+//         [email]
+//       );
+//       if (existing.length > 0) {
+//         return res.status(400).json({ error: "Email already exists" });
+//       }
+
+//       const photoPath = req.file ? `/Uploads/${req.file.filename}` : null;
+
+//       // Insert new team member
+//       const [result] = await pool.query(
+//         `INSERT INTO team_members (name, email, phone, position, photo_path, created_at, updated_at)
+//          VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+//         [name, email, phone, position, photoPath]
+//       );
+
+//       // Retrieve the inserted team member
+//       const [newMember] = await pool.query(
+//         `SELECT * FROM team_members WHERE id = ?`,
+//         [result.insertId]
+//       );
+
+//       if (newMember.length === 0) {
+//         return res
+//           .status(500)
+//           .json({ error: "Failed to retrieve created team member" });
+//       }
+
+//       res.status(201).json({
+//         id: newMember[0].id,
+//         name: newMember[0].name,
+//         email: newMember[0].email,
+//         phone: newMember[0].phone,
+//         position: newMember[0].position,
+//         photo_path: newMember[0].photo_path
+//           ? `${req.protocol}://${req.get("host")}${newMember[0].photo_path}`
+//           : null,
+//         updated_at: new Date(newMember[0].updated_at).toISOString(),
+//       });
+//     } catch (err) {
+//       console.error("Server error:", err);
+//       res.status(500).json({ error: err.message || "Server error" });
+//     }
+//   }
+// );
+
 app.post(
   "/api/admin/team",
   adminauthenticateToken,
   upload.single("photo"),
   async (req, res) => {
+    let connection;
+
     try {
       const { name, email, phone, position } = req.body;
 
-      // Validate required fields
+      // ---------------- VALIDATIONS ----------------
+
       if (!name || !email || !phone || !position) {
         return res
           .status(400)
           .json({ error: "Name, email, phone, and position are required" });
       }
 
-      // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
         return res.status(400).json({ error: "Invalid email format" });
       }
 
-      // Validate phone format (basic check for digits and common characters)
       const phoneRegex = /^\+?[\d\s-]{8,20}$/;
       if (!phoneRegex.test(phone)) {
         return res.status(400).json({ error: "Invalid phone number format" });
       }
 
-      // Check if email already exists
-      const [existing] = await pool.query(
+      connection = await pool.getConnection();
+      await connection.beginTransaction();
+
+      // ---------------- DUPLICATE EMAIL CHECK ----------------
+
+      const [existing] = await connection.query(
         `SELECT id FROM team_members WHERE email = ?`,
         [email]
       );
+
       if (existing.length > 0) {
+        await connection.rollback();
         return res.status(400).json({ error: "Email already exists" });
+      }
+
+      // ---------------- SALESPERSON CODE GENERATION ----------------
+
+      const [rows] = await connection.query(
+        `SELECT salesperson_code
+         FROM team_members
+         WHERE salesperson_code LIKE 'SP%'
+         ORDER BY salesperson_code DESC
+         LIMIT 1
+         FOR UPDATE`
+      );
+
+      let salespersonCode;
+
+      if (rows.length === 0) {
+        salespersonCode = "SP001";
+      } else {
+        const lastNumber = parseInt(
+          rows[0].salesperson_code.replace("SP", ""),
+          10
+        );
+        salespersonCode = `SP${String(lastNumber + 1).padStart(3, "0")}`;
       }
 
       const photoPath = req.file ? `/Uploads/${req.file.filename}` : null;
 
-      // Insert new team member
-      const [result] = await pool.query(
-        `INSERT INTO team_members (name, email, phone, position, photo_path, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-        [name, email, phone, position, photoPath]
+      // ---------------- INSERT TEAM MEMBER ----------------
+
+      const [result] = await connection.query(
+        `INSERT INTO team_members
+         (salesperson_code, name, email, phone, position, photo_path, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [salespersonCode, name, email, phone, position, photoPath]
       );
 
-      // Retrieve the inserted team member
-      const [newMember] = await pool.query(
+      const teamMemberId = result.insertId;
+
+      // ---------------- FETCH CREATED RECORD ----------------
+
+      const [newMember] = await connection.query(
         `SELECT * FROM team_members WHERE id = ?`,
-        [result.insertId]
+        [teamMemberId]
       );
+
+      await connection.commit();
 
       if (newMember.length === 0) {
         return res
@@ -11961,6 +12073,7 @@ app.post(
 
       res.status(201).json({
         id: newMember[0].id,
+        salesperson_code: newMember[0].salesperson_code,
         name: newMember[0].name,
         email: newMember[0].email,
         phone: newMember[0].phone,
@@ -11971,11 +12084,16 @@ app.post(
         updated_at: new Date(newMember[0].updated_at).toISOString(),
       });
     } catch (err) {
+      if (connection) await connection.rollback();
       console.error("Server error:", err);
       res.status(500).json({ error: err.message || "Server error" });
+    } finally {
+      if (connection) connection.release();
     }
   }
 );
+
+
 
 // GET /api/admin/team
 app.get("/api/admin/team", adminauthenticateToken, async (req, res) => {
