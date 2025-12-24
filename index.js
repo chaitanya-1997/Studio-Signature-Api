@@ -17,6 +17,7 @@ const port = process.env.PORT || 8080;
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = "1h";
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 // app.use(cors({ origin: "*" })); // Allow all origins for testing
 
@@ -129,27 +130,25 @@ const generateInvoiceNumber = async () => {
   return `INV-${String(count).padStart(4, "0")}`;
 };
 
-
 //----------------------------------------website API---------------------------------------
 
-
 // Email API endpoint
-app.post('/api/send-email', async (req, res) => {
+app.post("/api/send-email", async (req, res) => {
   try {
     const { name, email, phone, city, address, note } = req.body;
 
     // Validate required fields
     if (!name || !email || !phone || !city || !address) {
-      return res.status(400).json({ 
-        error: 'All fields are required except note' 
+      return res.status(400).json({
+        error: "All fields are required except note",
       });
     }
 
     // Email content for admin
     const adminMailOptions = {
       from: '"Studio Signature Cabinets Contact Form" <sssdemo6@gmail.com>',
-      to: 'info@studiosignaturecabinets.com',
-    
+      to: "info@studiosignaturecabinets.com",
+
       subject: `New Contact Form Submission from ${name}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -184,21 +183,28 @@ app.post('/api/send-email', async (req, res) => {
               <td style="padding: 8px; border: 1px solid #ddd; background-color: #f9f9f9;"><strong>Address:</strong></td>
               <td style="padding: 8px; border: 1px solid #ddd;">${address}</td>
             </tr>
-            ${note ? `
+            ${
+              note
+                ? `
             <tr>
               <td style="padding: 8px; border: 1px solid #ddd; background-color: #f9f9f9;"><strong>Note:</strong></td>
               <td style="padding: 8px; border: 1px solid #ddd;">${note}</td>
             </tr>
-            ` : ''}
+            `
+                : ""
+            }
             <tr>
               <td style="padding: 8px; border: 1px solid #ddd; background-color: #f9f9f9;"><strong>Submission Time:</strong></td>
-              <td style="padding: 8px; border: 1px solid #ddd;">${new Date().toLocaleString('en-US', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}</td>
+              <td style="padding: 8px; border: 1px solid #ddd;">${new Date().toLocaleString(
+                "en-US",
+                {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }
+              )}</td>
             </tr>
           </table>
 
@@ -220,7 +226,7 @@ app.post('/api/send-email', async (req, res) => {
     const userMailOptions = {
       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
       to: email,
-      subject: 'Thank you for contacting Studio Signature Cabinets',
+      subject: "Thank you for contacting Studio Signature Cabinets",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px;">
@@ -254,12 +260,16 @@ app.post('/api/send-email', async (req, res) => {
                 <td style="padding: 5px 0;"><strong>Address:</strong></td>
                 <td style="padding: 5px 0;">${address}</td>
               </tr>
-              ${note ? `
+              ${
+                note
+                  ? `
               <tr>
                 <td style="padding: 5px 0;"><strong>Note:</strong></td>
                 <td style="padding: 5px 0;">${note}</td>
               </tr>
-              ` : ''}
+              `
+                  : ""
+              }
             </table>
           </div>
 
@@ -289,18 +299,17 @@ app.post('/api/send-email', async (req, res) => {
     // Send both emails
     await transporter.sendMail(adminMailOptions);
     await transporter.sendMail(userMailOptions);
-    
+
     console.log(`Email sent successfully for: ${name} (${email})`);
-    
-    res.status(200).json({ 
-      success: true, 
-      message: 'Email sent successfully' 
+
+    res.status(200).json({
+      success: true,
+      message: "Email sent successfully",
     });
-    
   } catch (error) {
-    console.error('Error sending email:', error);
-    res.status(500).json({ 
-      error: 'Failed to send email: ' + error.message 
+    console.error("Error sending email:", error);
+    res.status(500).json({
+      error: "Failed to send email: " + error.message,
     });
   }
 });
@@ -399,7 +408,7 @@ app.post('/api/send-email', async (req, res) => {
 
 //     // Insert into DB - using company_name for the single business/company field
 //     const [result] = await pool.query(
-//       `INSERT INTO users 
+//       `INSERT INTO users
 //       (user_type, full_name, email, password, company_name, tax_id, phone, street, city, state, postal_code, is_active, created_at)
 //       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
 //       [
@@ -532,7 +541,6 @@ app.post('/api/send-email', async (req, res) => {
 //     res.status(500).json({ error: "Server error" });
 //   }
 // });
-
 
 app.post("/api/signup", async (req, res) => {
   const {
@@ -725,8 +733,7 @@ app.post("/api/signup", async (req, res) => {
     }
 
     res.status(201).json({
-      message:
-        "Signup request submitted successfully. Await admin approval.",
+      message: "Signup request submitted successfully. Await admin approval.",
     });
   } catch (err) {
     if (connection) await connection.rollback();
@@ -736,9 +743,6 @@ app.post("/api/signup", async (req, res) => {
     if (connection) connection.release();
   }
 });
-
-
-
 
 // Login API
 
@@ -908,19 +912,16 @@ app.get("/api/verify-token", authenticateToken, async (req, res) => {
 //   }
 // });
 
-
-
-
 // app.get("/api/profile", authenticateToken, async (req, res) => {
 //   try {
 //     const userId = req.user.id;
 //     console.log("Fetching profile for user ID:", userId);
 //     const [users] = await pool.query(
-//       `SELECT u.id, u.user_type, u.full_name, u.company_name, u.email, u.phone, 
-//               u.street, u.city, u.state, u.postal_code, u.account_status, u.last_login, 
-//               u.admin_discount, u.created_at, u.notes, u.profile_photo, u.team_member_id, 
+//       `SELECT u.id, u.user_type, u.full_name, u.company_name, u.email, u.phone,
+//               u.street, u.city, u.state, u.postal_code, u.account_status, u.last_login,
+//               u.admin_discount, u.created_at, u.notes, u.profile_photo, u.team_member_id,
 //               t.name AS team_member_name, t.position AS team_member_position,
-//               t.email AS team_member_email, t.phone AS team_member_phone, 
+//               t.email AS team_member_email, t.phone AS team_member_phone,
 //               t.photo_path AS team_member_photo
 //        FROM users u
 //        LEFT JOIN team_members t ON u.team_member_id = t.id
@@ -975,13 +976,7 @@ app.get("/api/verify-token", authenticateToken, async (req, res) => {
 //   }
 // });
 
-
-
-
 // PUT /api/profile
-
-
-
 
 // app.get("/api/profile", authenticateToken, async (req, res) => {
 //   try {
@@ -989,12 +984,12 @@ app.get("/api/verify-token", authenticateToken, async (req, res) => {
 //     console.log("Fetching profile for user ID:", userId);
 
 //     const [users] = await pool.query(
-//       `SELECT u.id, u.user_type, u.full_name, u.company_name, u.email, u.phone, 
-//               u.street, u.city, u.state, u.postal_code, u.account_status, u.last_login, 
-//               u.admin_discount, u.created_at, u.notes, u.profile_photo, u.team_member_id, 
+//       `SELECT u.id, u.user_type, u.full_name, u.company_name, u.email, u.phone,
+//               u.street, u.city, u.state, u.postal_code, u.account_status, u.last_login,
+//               u.admin_discount, u.created_at, u.notes, u.profile_photo, u.team_member_id,
 //               u.special_cust,
 //               t.name AS team_member_name, t.position AS team_member_position,
-//               t.email AS team_member_email, t.phone AS team_member_phone, 
+//               t.email AS team_member_email, t.phone AS team_member_phone,
 //               t.photo_path AS team_member_photo
 //        FROM users u
 //        LEFT JOIN team_members t ON u.team_member_id = t.id
@@ -1050,7 +1045,6 @@ app.get("/api/verify-token", authenticateToken, async (req, res) => {
 //   }
 // });
 
-
 app.get("/api/profile", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -1091,7 +1085,7 @@ app.get("/api/profile", authenticateToken, async (req, res) => {
       adminDiscount: user.admin_discount || null,
       createdAt: user.created_at,
       notes: user.notes || "",
-      specialCust: user.special_cust,   // ✅ added here
+      specialCust: user.special_cust, // ✅ added here
       profilePhoto: user.profile_photo
         ? `${req.protocol}://${req.get("host")}${
             user.profile_photo
@@ -1117,7 +1111,6 @@ app.get("/api/profile", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
 
 app.put(
   "/api/profile",
@@ -1367,7 +1360,6 @@ app.get("/api/orders/next-po", async (req, res) => {
   }
 });
 
-
 app.get("/api/orders/next-id", async (req, res) => {
   try {
     const nextOrderId = await generateOrderId(pool);
@@ -1377,9 +1369,6 @@ app.get("/api/orders/next-id", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch next order ID" });
   }
 });
-
-
-
 
 // app.post("/api/orders", authenticateToken, async (req, res) => {
 //   const {
@@ -1551,8 +1540,8 @@ app.get("/api/orders/next-id", async (req, res) => {
 //     // Insert order
 //     const [orderResult] = await connection.query(
 //       `INSERT INTO orders (
-//         user_id, door_style, finish_type, stain_option, paint_option, 
-//         account, bill_to, jobsite_address, design_services_price, assembly_flag, 
+//         user_id, door_style, finish_type, stain_option, paint_option,
+//         account, bill_to, jobsite_address, design_services_price, assembly_flag,
 //         subtotal, tax, shipping, discount, total, status, created_at, po_number
 //       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW(), NULL)`,
 //       [
@@ -1837,9 +1826,6 @@ app.get("/api/orders/next-id", async (req, res) => {
 //   }
 // });
 
-
-
-
 // app.post("/api/orders", authenticateToken, async (req, res) => {
 //   const {
 //     doorStyle,
@@ -2037,8 +2023,8 @@ app.get("/api/orders/next-id", async (req, res) => {
 //     // Insert order (po_number comes from user; optional)
 //     const [orderResult] = await connection.query(
 //       `INSERT INTO orders (
-//         user_id, door_style, finish_type, stain_option, paint_option, 
-//         account, bill_to, jobsite_address, design_services_price, assembly_flag, 
+//         user_id, door_style, finish_type, stain_option, paint_option,
+//         account, bill_to, jobsite_address, design_services_price, assembly_flag,
 //         subtotal, tax, shipping, discount, total, status, created_at, po_number
 //       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW(), ?)`,
 //       [
@@ -2357,9 +2343,6 @@ app.get("/api/orders/next-id", async (req, res) => {
 //   }
 // });
 
-
-
-
 app.post("/api/orders", authenticateToken, async (req, res) => {
   const {
     doorStyle,
@@ -2377,7 +2360,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
     shipping,
     total,
     discount,
-    poNumber,              // PO Number from body (optional)
+    poNumber, // PO Number from body (optional)
     requestedDeliveryDate, // 🆕 Requested Delivery Date from body (optional)
   } = req.body;
 
@@ -2473,9 +2456,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
     }
 
     // Validate discount
-    const expectedDiscount = parseFloat(
-      (subtotal * adminDiscount).toFixed(2)
-    );
+    const expectedDiscount = parseFloat((subtotal * adminDiscount).toFixed(2));
     if (
       discount === undefined ||
       parseFloat(discount.toFixed(2)) !== expectedDiscount
@@ -2579,7 +2560,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
         discount || 0,
         total,
         requestedDeliveryDate || null, // 🆕 save requested delivery date or null
-        poNumber || null,              // save user PO or null
+        poNumber || null, // save user PO or null
       ]
     );
 
@@ -2665,11 +2646,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
               ? `<li><strong>Assembly Services:</strong> Included</li>`
               : ""
           }
-          ${
-            poNumber
-              ? `<li><strong>PO Number:</strong> ${poNumber}</li>`
-              : ""
-          }
+          ${poNumber ? `<li><strong>PO Number:</strong> ${poNumber}</li>` : ""}
         </ul>
         <h3>Items</h3>
         <table style="border-collapse: collapse; width: 100%;">
@@ -2687,9 +2664,15 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
               .map(
                 (item) => `
               <tr>
-                <td style="border: 1px solid #ddd; padding: 8px;">${item.sku}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.quantity}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${
+                  item.sku
+                }</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${
+                  item.name
+                }</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${
+                  item.quantity
+                }</td>
                 <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
                   item.price || 0
                 ).toFixed(2)}</td>
@@ -2709,9 +2692,9 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
           )}</li>
           ${
             discount > 0
-              ? `<li><strong>Discount:</strong> $${parseFloat(
-                  discount
-                ).toFixed(2)}</li>`
+              ? `<li><strong>Discount:</strong> $${parseFloat(discount).toFixed(
+                  2
+                )}</li>`
               : ""
           }
           <li><strong>Tax (6.5%):</strong> $${parseFloat(tax).toFixed(2)}</li>
@@ -2760,11 +2743,7 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
               ? `<li><strong>Assembly Services:</strong> Included</li>`
               : ""
           }
-          ${
-            poNumber
-              ? `<li><strong>PO Number:</strong> ${poNumber}</li>`
-              : ""
-          }
+          ${poNumber ? `<li><strong>PO Number:</strong> ${poNumber}</li>` : ""}
         </ul>
         <h3>Items</h3>
         <table style="border-collapse: collapse; width: 100%;">
@@ -2782,9 +2761,15 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
               .map(
                 (item) => `
               <tr>
-                <td style="border: 1px solid #ddd; padding: 8px;">${item.sku}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.quantity}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${
+                  item.sku
+                }</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${
+                  item.name
+                }</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${
+                  item.quantity
+                }</td>
                 <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
                   item.price || 0
                 ).toFixed(2)}</td>
@@ -2804,9 +2789,9 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
           )}</li>
           ${
             discount > 0
-              ? `<li><strong>Discount:</strong> $${parseFloat(
-                  discount
-                ).toFixed(2)}</li>`
+              ? `<li><strong>Discount:</strong> $${parseFloat(discount).toFixed(
+                  2
+                )}</li>`
               : ""
           }
           <li><strong>Tax (6.5%):</strong> $${parseFloat(tax).toFixed(2)}</li>
@@ -2826,8 +2811,8 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2>Thank You for Your Order, ${userFullName}!</h2>
           <p>Your order <strong>${orderId}</strong>${
-            poNumber ? ` (PO: <strong>${poNumber}</strong>)` : ""
-          } has been submitted on ${new Date().toLocaleDateString()} and is currently <strong>pending admin approval</strong>.</p>
+        poNumber ? ` (PO: <strong>${poNumber}</strong>)` : ""
+      } has been submitted on ${new Date().toLocaleDateString()} and is currently <strong>pending admin approval</strong>.</p>
           <p><strong>Important:</strong></p>
           <ul>
             <li>This order cannot be edited or canceled after 24 hours.</li>
@@ -2849,8 +2834,8 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2>New Order Pending Approval: ${orderId}${
-            poNumber ? ` (PO: ${poNumber})` : ""
-          }</h2>
+        poNumber ? ` (PO: ${poNumber})` : ""
+      }</h2>
           <p>A new order has been submitted by <strong>${userFullName}</strong> (${userEmail}) on ${new Date().toLocaleDateString()}.</p>
           <p><strong>Phone:</strong> ${userPhone}</p>
           ${adminOrderDetailsHtml}
@@ -2889,15 +2874,12 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
   }
 });
 
-
-
-
 // app.get("/api/orders", authenticateToken, async (req, res) => {
 //   try {
 //     const userId = req.user.id;
 
 //     const [orders] = await pool.query(
-//       `SELECT 
+//       `SELECT
 //           o.order_id AS id,
 //           o.created_at,
 //           o.door_style,
@@ -3010,8 +2992,134 @@ app.post("/api/orders", authenticateToken, async (req, res) => {
 //   }
 // });
 
+//--24-12-025
+// app.get("/api/orders", authenticateToken, async (req, res) => {
+//   try {
+//     const userId = req.user.id;
 
+//     const [orders] = await pool.query(
+//       `SELECT
+//           o.order_id AS id,
+//           o.created_at,
+//           o.door_style,
+//           o.finish_type,
+//           o.stain_option,
+//           o.paint_option,
+//           o.account,
+//           o.bill_to,
+//           o.subtotal,
+//           o.tax,
+//           o.shipping,
+//           o.total,
+//           o.discount,
+//           o.additional_discount,
+//           o.design_services_price,
+//           o.assembly_flag,
+//           o.assembly_charges,
+//           o.status,
+//           o.po_number,
+//           o.jobsite_address,
+//           o.requested_delivery_date,   -- 🆕 add requested delivery date
+//           COALESCE(
+//             CAST(
+//               JSON_ARRAYAGG(
+//                 JSON_OBJECT(
+//                   'sku', oi.sku,
+//                   'name', oi.name,
+//                   'quantity', oi.quantity,
+//                   'price', oi.price,
+//                   'totalAmount', oi.total_amount
+//                 )
+//               ) AS JSON
+//             ),
+//             JSON_ARRAY()
+//           ) AS items
+//       FROM orders o
+//       LEFT JOIN order_items oi ON o.id = oi.order_id
+//       WHERE o.user_id = ?
+//       GROUP BY o.id
+//       ORDER BY o.created_at DESC`,
+//       [userId]
+//     );
 
+//     const formattedOrders = orders.map((order) => {
+//       // handle both cases: JSON string or JS array
+//       let parsedItems = [];
+//       try {
+//         if (typeof order.items === "string") {
+//           parsedItems = JSON.parse(order.items);
+//         } else if (Array.isArray(order.items)) {
+//           parsedItems = order.items;
+//         } else {
+//           parsedItems = [];
+//         }
+//       } catch (err) {
+//         console.error(`⚠️ JSON parse failed for order ${order.id}:`, err);
+//         parsedItems = [];
+//       }
+
+//       const additionalDiscountPercent =
+//         order.subtotal && order.additional_discount
+//           ? ((order.additional_discount / order.subtotal) * 100).toFixed(2)
+//           : "0.00";
+
+//       return {
+//         id: order.id,
+//         created_at: order.created_at
+//           ? new Date(order.created_at).toISOString()
+//           : null,
+//         date: order.created_at
+//           ? new Date(order.created_at).toISOString().split("T")[0]
+//           : null,
+//         productLine: order.door_style?.includes("Shaker")
+//           ? "Kitchen Shaker"
+//           : "Bath Shaker",
+//         status: order.status,
+//         total: `$${parseFloat(order.total || 0).toFixed(2)}`,
+//         subtotal: parseFloat(order.subtotal || 0).toFixed(2),
+//         discount: parseFloat(order.discount || 0).toFixed(2),
+//         design_services_price: parseFloat(
+//           order.design_services_price || 0
+//         ).toFixed(2),
+//         assembly_flag: order.assembly_flag,
+//         assembly_charges: parseFloat(order.assembly_charges || 0).toFixed(2),
+//         additional_discount: parseFloat(order.additional_discount || 0).toFixed(
+//           2
+//         ),
+//         additional_discount_percent: parseFloat(additionalDiscountPercent),
+//         tax: parseFloat(order.tax || 0).toFixed(2),
+//         shipping:
+//           order.shipping !== null
+//             ? parseFloat(order.shipping).toFixed(2)
+//             : null,
+//         account: order.account,
+//         bill_to: order.bill_to,
+//         po_number: order.po_number,
+//         jobsite_address: order.jobsite_address,
+
+//         // 🆕 expose requested delivery date to frontend
+//         requested_delivery_date: order.requested_delivery_date
+//           ? new Date(order.requested_delivery_date)
+//               .toISOString()
+//               .split("T")[0]
+//           : null,
+
+//         items: parsedItems,
+//         door_style: order.door_style,
+//         finish_type: order.finish_type,
+//         stain_option: order.stain_option,
+//         paint_option: order.paint_option,
+//       };
+//     });
+
+//     res.json(formattedOrders);
+//   } catch (err) {
+//     console.error("❌ Server error:", err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// });
+
+//--24-12-25 payment method added api
 
 app.get("/api/orders", authenticateToken, async (req, res) => {
   try {
@@ -3019,41 +3127,45 @@ app.get("/api/orders", authenticateToken, async (req, res) => {
 
     const [orders] = await pool.query(
       `SELECT 
-          o.order_id AS id,
-          o.created_at,
-          o.door_style,
-          o.finish_type,
-          o.stain_option,
-          o.paint_option,
-          o.account,
-          o.bill_to,
-          o.subtotal,
-          o.tax,
-          o.shipping,
-          o.total,
-          o.discount,
-          o.additional_discount,
-          o.design_services_price,
-          o.assembly_flag,
-          o.assembly_charges,
-          o.status,
-          o.po_number,
-          o.jobsite_address,
-          o.requested_delivery_date,   -- 🆕 add requested delivery date
-          COALESCE(
-            CAST(
-              JSON_ARRAYAGG(
-                JSON_OBJECT(
-                  'sku', oi.sku,
-                  'name', oi.name,
-                  'quantity', oi.quantity,
-                  'price', oi.price,
-                  'totalAmount', oi.total_amount
-                )
-              ) AS JSON
-            ),
-            JSON_ARRAY()
-          ) AS items
+        o.order_id AS id,
+        o.created_at,
+        o.door_style,
+        o.finish_type,
+        o.stain_option,
+        o.paint_option,
+        o.account,
+        o.bill_to,
+        o.subtotal,
+        o.tax,
+        o.shipping,
+        o.total,
+        o.discount,
+        o.additional_discount,
+        o.design_services_price,
+        o.assembly_flag,
+        o.status,
+
+        -- ✅ NEW FIELDS
+        o.po_number,
+        o.jobsite_address,
+        o.requested_delivery_date,
+
+        -- ✅ PAYMENT FIELDS
+        o.payment_status,
+        o.payment_intent_id,
+        o.paid_amount,
+        o.paid_at,
+
+        GROUP_CONCAT(
+          JSON_OBJECT(
+            'sku', oi.sku,
+            'name', oi.name,
+            'quantity', oi.quantity,
+            'price', oi.price,
+            'totalAmount', oi.total_amount
+          )
+        ) AS items
+
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       WHERE o.user_id = ?
@@ -3062,88 +3174,151 @@ app.get("/api/orders", authenticateToken, async (req, res) => {
       [userId]
     );
 
-    const formattedOrders = orders.map((order) => {
-      // handle both cases: JSON string or JS array
-      let parsedItems = [];
-      try {
-        if (typeof order.items === "string") {
-          parsedItems = JSON.parse(order.items);
-        } else if (Array.isArray(order.items)) {
-          parsedItems = order.items;
-        } else {
-          parsedItems = [];
-        }
-      } catch (err) {
-        console.error(`⚠️ JSON parse failed for order ${order.id}:`, err);
-        parsedItems = [];
-      }
+    const formattedOrders = orders.map((order) => ({
+      id: order.id,
 
-      const additionalDiscountPercent =
-        order.subtotal && order.additional_discount
-          ? ((order.additional_discount / order.subtotal) * 100).toFixed(2)
-          : "0.00";
+      created_at: order.created_at
+        ? new Date(order.created_at).toISOString()
+        : null,
 
-      return {
-        id: order.id,
-        created_at: order.created_at
-          ? new Date(order.created_at).toISOString()
+      date: order.created_at
+        ? new Date(order.created_at).toISOString().split("T")[0]
+        : null,
+
+      status: order.status,
+
+      /* ✅ PAYMENT INFO */
+      payment_status: order.payment_status || "Pending",
+      payment_intent_id: order.payment_intent_id || null,
+      paid_amount:
+        order.paid_amount !== null
+          ? parseFloat(order.paid_amount).toFixed(2)
           : null,
-        date: order.created_at
-          ? new Date(order.created_at).toISOString().split("T")[0]
-          : null,
-        productLine: order.door_style?.includes("Shaker")
-          ? "Kitchen Shaker"
-          : "Bath Shaker",
-        status: order.status,
-        total: `$${parseFloat(order.total || 0).toFixed(2)}`,
-        subtotal: parseFloat(order.subtotal || 0).toFixed(2),
-        discount: parseFloat(order.discount || 0).toFixed(2),
-        design_services_price: parseFloat(
-          order.design_services_price || 0
-        ).toFixed(2),
-        assembly_flag: order.assembly_flag,
-        assembly_charges: parseFloat(order.assembly_charges || 0).toFixed(2),
-        additional_discount: parseFloat(order.additional_discount || 0).toFixed(
-          2
-        ),
-        additional_discount_percent: parseFloat(additionalDiscountPercent),
-        tax: parseFloat(order.tax || 0).toFixed(2),
-        shipping:
-          order.shipping !== null
-            ? parseFloat(order.shipping).toFixed(2)
-            : null,
-        account: order.account,
-        bill_to: order.bill_to,
-        po_number: order.po_number,
-        jobsite_address: order.jobsite_address,
+      paid_at: order.paid_at ? new Date(order.paid_at).toISOString() : null,
 
-        // 🆕 expose requested delivery date to frontend
-        requested_delivery_date: order.requested_delivery_date
-          ? new Date(order.requested_delivery_date)
-              .toISOString()
-              .split("T")[0]
-          : null,
+      subtotal: parseFloat(order.subtotal || 0).toFixed(2),
+      tax: parseFloat(order.tax || 0).toFixed(2),
+      shipping:
+        order.shipping !== null ? parseFloat(order.shipping).toFixed(2) : null,
 
-        items: parsedItems,
-        door_style: order.door_style,
-        finish_type: order.finish_type,
-        stain_option: order.stain_option,
-        paint_option: order.paint_option,
-      };
-    });
+      total: `$${parseFloat(order.total || 0).toFixed(2)}`,
+      discount: parseFloat(order.discount || 0).toFixed(2),
+      additional_discount: parseFloat(order.additional_discount || 0).toFixed(
+        2
+      ),
+
+      design_services_price: parseFloat(
+        order.design_services_price || 0
+      ).toFixed(2),
+
+      assembly_flag: order.assembly_flag,
+
+      account: order.account,
+      bill_to: order.bill_to,
+
+      door_style: order.door_style,
+      finish_type: order.finish_type,
+      stain_option: order.stain_option,
+      paint_option: order.paint_option,
+
+      /* ✅ NEW FIELDS MAPPED */
+      po_number: order.po_number || null,
+      jobsite_address: order.jobsite_address || null,
+
+      requested_delivery_date: order.requested_delivery_date
+        ? new Date(order.requested_delivery_date).toISOString().split("T")[0] // ✅ prevents -1 day issue
+        : null,
+
+      items: order.items ? JSON.parse(`[${order.items}]`) : [],
+    }));
 
     res.json(formattedOrders);
   } catch (err) {
-    console.error("❌ Server error:", err);
+    console.error("GET /api/orders error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
+app.post("/api/create-payment-intent", authenticateToken, async (req, res) => {
+  try {
+    let { amount, amountInDollars } = req.body;
 
+    // Stripe requires cents
+    amount = Number(amount);
 
+    if (!Number.isInteger(amount) || amount < 50) {
+      return res.status(400).json({
+        error: "Invalid Stripe amount",
+      });
+    }
 
+    // ✅ OPTIONAL: store dollar value
+    console.log("Charging amount (USD):", amountInDollars);
 
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount, // cents
+      currency: "usd",
+      automatic_payment_methods: { enabled: true },
+      metadata: {
+        amount_usd: amountInDollars, // 👈 stored as dollars
+      },
+    });
 
+    res.json({ clientSecret: paymentIntent.client_secret });
+  } catch (err) {
+    console.error("Stripe error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/orders/:id/pay", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params; // <-- S-ORD101358
+    const { paymentIntentId } = req.body;
+
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+    if (
+      !["succeeded", "processing", "requires_capture"].includes(
+        paymentIntent.status
+      )
+    ) {
+      return res.status(400).json({
+        error: "Payment not completed",
+        status: paymentIntent.status,
+      });
+    }
+
+    const paidAmount = paymentIntent.amount / 100;
+
+    const [result] = await pool.query(
+      `UPDATE orders
+       SET payment_status = 'Paid',
+           payment_intent_id = ?,
+           paid_amount = ?,
+           paid_at = NOW()
+       WHERE order_id = ?`,
+      [paymentIntentId, paidAmount, id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        error: "Order not found",
+        order_id: id,
+      });
+    }
+
+    res.json({
+      message: "Payment recorded successfully",
+      payment_status: "Paid",
+      paid_amount: paidAmount,
+      paid_at: new Date(),
+    });
+  } catch (err) {
+    console.error("Payment update error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.put("/api/orders/:id", authenticateToken, async (req, res) => {
   const orderId = req.params.id;
@@ -3720,8 +3895,6 @@ app.put("/api/orders/:id/cancel", authenticateToken, async (req, res) => {
   }
 });
 
-
-
 // Add these routes to your Express app, assuming you have 'app', 'pool', 'authenticateToken', and 'transporter' defined as in the original code.
 
 // POST /api/drafts - Save a new draft
@@ -3771,8 +3944,8 @@ app.put("/api/orders/:id/cancel", authenticateToken, async (req, res) => {
 //     // But for drafts, store what frontend sends, even if partial
 //     const [result] = await pool.query(
 //       `INSERT INTO draft_orders (
-//         user_id, door_style, finish_type, stain_option, paint_option, 
-//         account, bill_to, design_services_price, assembly_flag, 
+//         user_id, door_style, finish_type, stain_option, paint_option,
+//         account, bill_to, design_services_price, assembly_flag,
 //         items, subtotal, tax, shipping, discount, total
 //       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 //       [
@@ -3804,7 +3977,6 @@ app.put("/api/orders/:id/cancel", authenticateToken, async (req, res) => {
 //   }
 // });
 
-
 app.post("/api/drafts", authenticateToken, async (req, res) => {
   const {
     doorStyle,
@@ -3821,8 +3993,8 @@ app.post("/api/drafts", authenticateToken, async (req, res) => {
     shipping,
     total,
     discount,
-    poNumber,        // ✅ NEW
-    jobsiteAddress,  // ✅ NEW
+    poNumber, // ✅ NEW
+    jobsiteAddress, // ✅ NEW
   } = req.body;
 
   try {
@@ -3872,10 +4044,10 @@ app.post("/api/drafts", authenticateToken, async (req, res) => {
         paintOption || null,
         account || null,
         billTo || null,
-        jobsiteAddress || null,              // ✅
+        jobsiteAddress || null, // ✅
         designServicesPrice || 0,
         assemblyFlag,
-        poNumber || null,                    // ✅
+        poNumber || null, // ✅
         JSON.stringify(items),
         subtotal || null,
         tax || null,
@@ -3894,8 +4066,6 @@ app.post("/api/drafts", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Error saving draft" });
   }
 });
-
-
 
 // GET /api/drafts - Fetch current user's drafts (no :userId needed, use token)
 // app.get("/api/drafts", authenticateToken, async (req, res) => {
@@ -3925,8 +4095,6 @@ app.post("/api/drafts", authenticateToken, async (req, res) => {
 //   }
 // });
 
-
-
 app.get("/api/drafts", authenticateToken, async (req, res) => {
   const userId = req.user.id;
 
@@ -3950,8 +4118,8 @@ app.get("/api/drafts", authenticateToken, async (req, res) => {
       return {
         ...draft,
         items,
-        poNumber: draft.po_number || null,            // ✅ camelCase for frontend
-        jobsiteAddress: draft.jobsite_address || "",  // ✅ camelCase for frontend
+        poNumber: draft.po_number || null, // ✅ camelCase for frontend
+        jobsiteAddress: draft.jobsite_address || "", // ✅ camelCase for frontend
       };
     });
 
@@ -3962,22 +4130,20 @@ app.get("/api/drafts", authenticateToken, async (req, res) => {
   }
 });
 
-
-app.get('/api/count', authenticateToken, async (req, res) => {
+app.get("/api/count", authenticateToken, async (req, res) => {
   const userId = req.user.id;
 
   try {
     const [result] = await pool.query(
-      'SELECT COUNT(*) as count FROM draft_orders WHERE user_id = ?',
+      "SELECT COUNT(*) as count FROM draft_orders WHERE user_id = ?",
       [userId]
     );
     res.json({ count: result[0].count });
   } catch (err) {
-    console.error('Error fetching draft count:', err);
-    res.status(500).json({ error: 'Error fetching draft count' });
+    console.error("Error fetching draft count:", err);
+    res.status(500).json({ error: "Error fetching draft count" });
   }
 });
-
 
 // PUT /api/drafts/:id - Update a draft
 // app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
@@ -4032,9 +4198,9 @@ app.get('/api/count', authenticateToken, async (req, res) => {
 //     }
 
 //     await pool.query(
-//       `UPDATE draft_orders SET 
-//         door_style = ?, finish_type = ?, stain_option = ?, paint_option = ?, 
-//         account = ?, bill_to = ?, design_services_price = ?, assembly_flag = ?, 
+//       `UPDATE draft_orders SET
+//         door_style = ?, finish_type = ?, stain_option = ?, paint_option = ?,
+//         account = ?, bill_to = ?, design_services_price = ?, assembly_flag = ?,
 //         items = ?, subtotal = ?, tax = ?, shipping = ?, discount = ?, total = ?,
 //         updated_at = NOW()
 //       WHERE id = ?`,
@@ -4064,7 +4230,6 @@ app.get('/api/count', authenticateToken, async (req, res) => {
 //   }
 // });
 
-
 app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
   const draftId = req.params.id;
   const {
@@ -4082,8 +4247,8 @@ app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
     shipping,
     total,
     discount,
-    poNumber,        // ✅ NEW
-    jobsiteAddress,  // ✅ NEW
+    poNumber, // ✅ NEW
+    jobsiteAddress, // ✅ NEW
   } = req.body;
 
   try {
@@ -4155,10 +4320,10 @@ app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
         paintOption || null,
         account || null,
         billTo || null,
-        jobsiteAddress || null,       // ✅
+        jobsiteAddress || null, // ✅
         designServicesPrice || 0,
         assemblyFlag,
-        poNumber || null,             // ✅
+        poNumber || null, // ✅
         JSON.stringify(items),
         subtotal || null,
         tax || null,
@@ -4175,8 +4340,6 @@ app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Error updating draft" });
   }
 });
-
-
 
 // DELETE /api/drafts/:id - Delete a draft
 app.delete("/api/drafts/:id", authenticateToken, async (req, res) => {
@@ -4197,18 +4360,10 @@ app.delete("/api/drafts/:id", authenticateToken, async (req, res) => {
     await pool.query("DELETE FROM draft_orders WHERE id = ?", [draftId]);
     res.json({ message: "Draft deleted successfully" });
   } catch (err) {
-    console.error('Error deleting draft:', err);
+    console.error("Error deleting draft:", err);
     res.status(500).json({ error: "Error deleting draft" });
   }
 });
-
-
-
-
-
-
-
-
 
 app.get("/api/items", authenticateToken, async (req, res) => {
   try {
@@ -4244,49 +4399,45 @@ app.get("/api/items", authenticateToken, async (req, res) => {
   }
 });
 
-
 // API to fetch unique item types
-app.get('/api/items/types', authenticateToken, async (req, res) => {
+app.get("/api/items/types", authenticateToken, async (req, res) => {
   try {
-    const query = 'SELECT DISTINCT item_type FROM items';
+    const query = "SELECT DISTINCT item_type FROM items";
     const [rows] = await pool.query(query);
-    const itemTypes = rows.map(row => row.item_type);
+    const itemTypes = rows.map((row) => row.item_type);
     res.json(itemTypes);
   } catch (err) {
-    console.error('Error fetching item types:', err);
-    res.status(500).json({ error: 'Failed to fetch item types' });
+    console.error("Error fetching item types:", err);
+    res.status(500).json({ error: "Failed to fetch item types" });
   }
 });
 
 // API to fetch unique colors for a given item type
-app.get('/api/items/colors', authenticateToken, async (req, res) => {
+app.get("/api/items/colors", authenticateToken, async (req, res) => {
   try {
     const { item_type } = req.query;
     if (!item_type) {
-      return res.status(400).json({ error: 'item_type parameter is required' });
+      return res.status(400).json({ error: "item_type parameter is required" });
     }
-    const query = 'SELECT DISTINCT color FROM items WHERE item_type = ?';
+    const query = "SELECT DISTINCT color FROM items WHERE item_type = ?";
     const [rows] = await pool.query(query, [item_type.toUpperCase()]);
-    const colors = rows.map(row => row.color);
+    const colors = rows.map((row) => row.color);
     res.json(colors);
   } catch (err) {
-    console.error('Error fetching colors:', err);
-    res.status(500).json({ error: 'Failed to fetch colors' });
+    console.error("Error fetching colors:", err);
+    res.status(500).json({ error: "Failed to fetch colors" });
   }
 });
 
-
-
-
-
 // GET /api/specialitems - returns special items assigned to the authenticated customer
-
 
 app.get("/api/specialitems", authenticateToken, async (req, res) => {
   try {
     const customerId = req.user?.id;
     if (!customerId) {
-      return res.status(401).json({ error: "Unauthorized: user not identified" });
+      return res
+        .status(401)
+        .json({ error: "Unauthorized: user not identified" });
     }
 
     const { item_type, color, sku_prefix, sku } = req.query;
@@ -4342,10 +4493,16 @@ app.get("/api/specialitems", authenticateToken, async (req, res) => {
     const normalized = rows.map((r) => ({
       ...r,
       price: r.price !== null ? parseFloat(r.price) : null,
-      qty: r.qty !== null ? (Number.isInteger(r.qty) ? parseInt(r.qty, 10) : parseFloat(r.qty)) : null,
+      qty:
+        r.qty !== null
+          ? Number.isInteger(r.qty)
+            ? parseInt(r.qty, 10)
+            : parseFloat(r.qty)
+          : null,
       cust_price: r.cust_price !== null ? parseFloat(r.cust_price) : null,
       cust_qty: r.cust_qty !== null ? parseInt(r.cust_qty, 10) : null,
-      cust_unitcost: r.cust_unitcost !== null ? parseFloat(r.cust_unitcost) : null,
+      cust_unitcost:
+        r.cust_unitcost !== null ? parseFloat(r.cust_unitcost) : null,
     }));
 
     res.json(normalized);
@@ -4356,11 +4513,13 @@ app.get("/api/specialitems", authenticateToken, async (req, res) => {
 });
 
 // GET /api/specialitems/types - unique item_type values for this customer's specialitems
-app.get('/api/specialitems/types', authenticateToken, async (req, res) => {
+app.get("/api/specialitems/types", authenticateToken, async (req, res) => {
   try {
     const customerId = req.user?.id;
     if (!customerId) {
-      return res.status(401).json({ error: "Unauthorized: user not identified" });
+      return res
+        .status(401)
+        .json({ error: "Unauthorized: user not identified" });
     }
 
     // Use UPPER to group case-insensitively, but return original values (use MIN/ANY_VALUE)
@@ -4372,25 +4531,27 @@ app.get('/api/specialitems/types', authenticateToken, async (req, res) => {
         AND p.customer_id = ?
     `;
     const [rows] = await pool.query(query, [customerId]);
-    const itemTypes = rows.map(row => row.item_type);
+    const itemTypes = rows.map((row) => row.item_type);
     res.json(itemTypes);
   } catch (err) {
-    console.error('Error fetching special item types:', err);
-    res.status(500).json({ error: 'Failed to fetch item types' });
+    console.error("Error fetching special item types:", err);
+    res.status(500).json({ error: "Failed to fetch item types" });
   }
 });
 
 // GET /api/specialitems/colors?item_type=... - unique colors for a given item_type for this customer
-app.get('/api/specialitems/colors', authenticateToken, async (req, res) => {
+app.get("/api/specialitems/colors", authenticateToken, async (req, res) => {
   try {
     const customerId = req.user?.id;
     if (!customerId) {
-      return res.status(401).json({ error: "Unauthorized: user not identified" });
+      return res
+        .status(401)
+        .json({ error: "Unauthorized: user not identified" });
     }
 
     const { item_type } = req.query;
     if (!item_type) {
-      return res.status(400).json({ error: 'item_type parameter is required' });
+      return res.status(400).json({ error: "item_type parameter is required" });
     }
 
     const query = `
@@ -4402,15 +4563,13 @@ app.get('/api/specialitems/colors', authenticateToken, async (req, res) => {
       WHERE UPPER(s.item_type) = UPPER(?)
     `;
     const [rows] = await pool.query(query, [customerId, item_type]);
-    const colors = rows.map(row => row.color);
+    const colors = rows.map((row) => row.color);
     res.json(colors);
   } catch (err) {
-    console.error('Error fetching special item colors:', err);
-    res.status(500).json({ error: 'Failed to fetch colors' });
+    console.error("Error fetching special item colors:", err);
+    res.status(500).json({ error: "Failed to fetch colors" });
   }
 });
-
-
 
 app.get("/api/user-stats", authenticateToken, async (req, res) => {
   try {
@@ -5546,14 +5705,12 @@ app.get("/api/admin/users", adminauthenticateToken, async (req, res) => {
   }
 });
 
-
-
 // app.get("/api/admin/users", adminauthenticateToken, async (req, res) => {
 //   try {
 //     const [users] = await pool.query(
-//       `SELECT u.id, u.full_name, u.email, u.phone, u.created_at, u.last_login, 
+//       `SELECT u.id, u.full_name, u.email, u.phone, u.created_at, u.last_login,
 //               u.account_status, u.is_active, u.company_name, u.street, u.city, u.special_cust,
-//               u.state, u.postal_code, u.admin_discount, u.updated_at, u.notes, 
+//               u.state, u.postal_code, u.admin_discount, u.updated_at, u.notes,
 //               u.team_member_id, u.profile_photo, t.name AS team_member_name
 //        FROM users u
 //        LEFT JOIN team_members t ON u.team_member_id = t.id
@@ -5591,11 +5748,6 @@ app.get("/api/admin/users", adminauthenticateToken, async (req, res) => {
 //     res.status(500).json({ error: "Server error" });
 //   }
 // });
-
-
-
-
-
 
 app.get("/api/admin/vendors", adminauthenticateToken, async (req, res) => {
   try {
@@ -5765,7 +5917,8 @@ app.put(
   }
 );
 
-app.put("/api/admin/user/:id/discount",
+app.put(
+  "/api/admin/user/:id/discount",
   adminauthenticateToken,
   async (req, res) => {
     const { id } = req.params;
@@ -5898,10 +6051,7 @@ app.put("/api/admin/user/:id/discount",
   }
 );
 
-
-
 // Update User Status
-
 
 // app.put("/api/admin/user/:id/discount",
 //   adminauthenticateToken,
@@ -5988,8 +6138,8 @@ app.put("/api/admin/user/:id/discount",
 
 //       // ✅ Update discount, notes, team_member_id, special_cust
 //       await pool.query(
-//         `UPDATE users 
-//          SET admin_discount = ?, notes = ?, team_member_id = ?, special_cust = ?, updated_at = NOW() 
+//         `UPDATE users
+//          SET admin_discount = ?, notes = ?, team_member_id = ?, special_cust = ?, updated_at = NOW()
 //          WHERE id = ?`,
 //         [
 //           admin_discount !== undefined ? admin_discount : null,
@@ -6002,9 +6152,9 @@ app.put("/api/admin/user/:id/discount",
 
 //       // Fetch updated user data
 //       const [updatedUser] = await pool.query(
-//         `SELECT u.id, u.full_name, u.email, u.phone, u.created_at, u.last_login, 
-//                 u.account_status, u.is_active, u.company_name, u.street, u.city, 
-//                 u.state, u.postal_code, u.admin_discount, u.updated_at, u.notes, 
+//         `SELECT u.id, u.full_name, u.email, u.phone, u.created_at, u.last_login,
+//                 u.account_status, u.is_active, u.company_name, u.street, u.city,
+//                 u.state, u.postal_code, u.admin_discount, u.updated_at, u.notes,
 //                 u.team_member_id, t.name AS team_member_name, u.special_cust
 //          FROM users u
 //          LEFT JOIN team_members t ON u.team_member_id = t.id
@@ -6048,10 +6198,9 @@ app.put("/api/admin/user/:id/discount",
 //   }
 // );
 
-
-
-
-app.put(  "/api/admin/user/:id/status",  adminauthenticateToken,
+app.put(
+  "/api/admin/user/:id/status",
+  adminauthenticateToken,
   async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
@@ -6129,11 +6278,10 @@ app.put(  "/api/admin/user/:id/status",  adminauthenticateToken,
   }
 );
 
-
 // app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
 //   try {
 //     const [orders] = await pool.query(`
-//       SELECT 
+//       SELECT
 //         o.id AS id,
 //         o.order_id AS orderId,
 //         o.user_id,
@@ -6230,11 +6378,10 @@ app.put(  "/api/admin/user/:id/status",  adminauthenticateToken,
 //   }
 // });
 
-
 // app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
 //   try {
 //     const [orders] = await pool.query(`
-//       SELECT 
+//       SELECT
 //         o.id AS id,
 //         o.order_id AS orderId,
 //         o.user_id,
@@ -6335,15 +6482,13 @@ app.put(  "/api/admin/user/:id/status",  adminauthenticateToken,
 //   }
 // });
 
-
-
 // app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
 //   const orderId = req.params.id;
 //   try {
 //     // Fetch order details
 //     const [orders] = await pool.query(
 //       `
-//       SELECT 
+//       SELECT
 //         o.id,
 //         o.order_id AS orderId,
 //         o.user_id,
@@ -6381,7 +6526,7 @@ app.put(  "/api/admin/user/:id/status",  adminauthenticateToken,
 //     // Fetch order items separately
 //     const [items] = await pool.query(
 //       `
-//       SELECT 
+//       SELECT
 //         sku,
 //         name,
 //         quantity,
@@ -6441,9 +6586,6 @@ app.put(  "/api/admin/user/:id/status",  adminauthenticateToken,
 //     res.status(500).json({ error: "Server error" });
 //   }
 // });
-
-
-
 
 app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
   try {
@@ -6554,15 +6696,13 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
   }
 });
 
-
-
 // app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
 //   const orderId = req.params.id;
 //   try {
 //     // Fetch order details
 //     const [orders] = await pool.query(
 //       `
-//       SELECT 
+//       SELECT
 //         o.id,
 //         o.order_id AS orderId,
 //         o.user_id,
@@ -6603,7 +6743,7 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
 //     // Fetch order items separately
 //     const [items] = await pool.query(
 //       `
-//       SELECT 
+//       SELECT
 //         sku,
 //         name,
 //         quantity,
@@ -6667,7 +6807,6 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
 //   }
 // });
 
-
 // app.post("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
 //   const { id } = req.params;
 //   const { shipping, additional_discount } = req.body;
@@ -6696,10 +6835,10 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
 //   try {
 //     // Fetch order details
 //     const [orders] = await pool.query(
-//       `SELECT o.id, o.order_id, o.subtotal, o.tax, o.discount, o.additional_discount AS current_additional_discount, 
-//                 o.shipping AS current_shipping, o.total, o.user_id, u.full_name, u.email 
-//          FROM orders o 
-//          LEFT JOIN users u ON o.user_id = u.id 
+//       `SELECT o.id, o.order_id, o.subtotal, o.tax, o.discount, o.additional_discount AS current_additional_discount,
+//                 o.shipping AS current_shipping, o.total, o.user_id, u.full_name, u.email
+//          FROM orders o
+//          LEFT JOIN users u ON o.user_id = u.id
 //          WHERE o.id = ?`,
 //       [id]
 //     );
@@ -6852,10 +6991,10 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
 //     try {
 //       // Fetch order details
 //       const [orders] = await pool.query(
-//         `SELECT o.id, o.order_id, o.subtotal, o.tax, o.discount, o.additional_discount AS current_additional_discount, 
-//                 o.shipping AS current_shipping, o.total, o.user_id, u.full_name, u.email 
-//          FROM orders o 
-//          LEFT JOIN users u ON o.user_id = u.id 
+//         `SELECT o.id, o.order_id, o.subtotal, o.tax, o.discount, o.additional_discount AS current_additional_discount,
+//                 o.shipping AS current_shipping, o.total, o.user_id, u.full_name, u.email
+//          FROM orders o
+//          LEFT JOIN users u ON o.user_id = u.id
 //          WHERE o.id = ?`,
 //         [id]
 //       );
@@ -6977,8 +7116,6 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
 //   }
 // );
 
-
-
 app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
   const orderId = req.params.id;
   try {
@@ -7066,9 +7203,9 @@ app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
         assembly_charges: order.assembly_charges
           ? parseFloat(order.assembly_charges).toFixed(2)
           : "0.00",
-        additional_discount: parseFloat(
-          order.additional_discount || 0
-        ).toFixed(2),
+        additional_discount: parseFloat(order.additional_discount || 0).toFixed(
+          2
+        ),
         additional_discount_percent: parseFloat(additionalDiscountPercent),
         total: parseFloat(order.total || 0).toFixed(2),
         status: order.status,
@@ -7097,8 +7234,6 @@ app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
   }
 });
 
-
-
 app.post("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
   const { id } = req.params;
   const { shipping, additional_discount, assembly_charges } = req.body;
@@ -7123,7 +7258,10 @@ app.post("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
     );
     return res
       .status(400)
-      .json({ error: "Invalid shipping, additional discount (0-100%), or assembly charges (non-negative)" });
+      .json({
+        error:
+          "Invalid shipping, additional discount (0-100%), or assembly charges (non-negative)",
+      });
   }
 
   try {
@@ -7172,9 +7310,19 @@ app.post("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
     let newTotal;
     if (discount > 0) {
       newTotal =
-        subtotal - newAdditionalDiscountAmount - discount + tax + newShipping + newAssemblyCharges;
+        subtotal -
+        newAdditionalDiscountAmount -
+        discount +
+        tax +
+        newShipping +
+        newAssemblyCharges;
     } else {
-      newTotal = subtotal - newAdditionalDiscountAmount + tax + newShipping + newAssemblyCharges;
+      newTotal =
+        subtotal -
+        newAdditionalDiscountAmount +
+        tax +
+        newShipping +
+        newAssemblyCharges;
     }
 
     // Ensure total is non-negative
@@ -7186,11 +7334,21 @@ app.post("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
     // Update database
     await pool.query(
       "UPDATE orders SET shipping = ?, additional_discount = ?, assembly_charges = ?, total = ? WHERE id = ?",
-      [newShipping, newAdditionalDiscountAmount, newAssemblyCharges, newTotal, id]
+      [
+        newShipping,
+        newAdditionalDiscountAmount,
+        newAssemblyCharges,
+        newTotal,
+        id,
+      ]
     );
 
     // Send email if changes were made
-    if (shipping !== undefined || additional_discount !== undefined || assembly_charges !== undefined) {
+    if (
+      shipping !== undefined ||
+      additional_discount !== undefined ||
+      assembly_charges !== undefined
+    ) {
       const mailOptions = {
         from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
         to: user.email,
@@ -7217,7 +7375,9 @@ app.post("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
                 <li><strong>Shipping Charges:</strong> $${newShipping.toFixed(
                   2
                 )}</li>
-                <li><strong>Assembly Charges:</strong> $${newAssemblyCharges.toFixed(2)}</li>
+                <li><strong>Assembly Charges:</strong> $${newAssemblyCharges.toFixed(
+                  2
+                )}</li>
                 <li><strong>Final Total:</strong> $${newTotal.toFixed(2)}</li>
               </ul>
               <p><strong>Next Steps:</strong></p>
@@ -7288,7 +7448,10 @@ app.put(
       );
       return res
         .status(400)
-        .json({ error: "Invalid shipping, additional discount (0-100%), or assembly charges (non-negative)" });
+        .json({
+          error:
+            "Invalid shipping, additional discount (0-100%), or assembly charges (non-negative)",
+        });
     }
 
     try {
@@ -7337,9 +7500,19 @@ app.put(
       let newTotal;
       if (discount > 0) {
         newTotal =
-          subtotal - newAdditionalDiscountAmount - discount + tax + newShipping + newAssemblyCharges;
+          subtotal -
+          newAdditionalDiscountAmount -
+          discount +
+          tax +
+          newShipping +
+          newAssemblyCharges;
       } else {
-        newTotal = subtotal - newAdditionalDiscountAmount + tax + newShipping + newAssemblyCharges;
+        newTotal =
+          subtotal -
+          newAdditionalDiscountAmount +
+          tax +
+          newShipping +
+          newAssemblyCharges;
       }
 
       // Ensure total is non-negative
@@ -7351,11 +7524,21 @@ app.put(
       // Update database
       await pool.query(
         "UPDATE orders SET shipping = ?, additional_discount = ?, assembly_charges = ?, total = ? WHERE id = ?",
-        [newShipping, newAdditionalDiscountAmount, newAssemblyCharges, newTotal, id]
+        [
+          newShipping,
+          newAdditionalDiscountAmount,
+          newAssemblyCharges,
+          newTotal,
+          id,
+        ]
       );
 
       // Send email if changes were made
-      if (shipping !== undefined || additional_discount !== undefined || assembly_charges !== undefined) {
+      if (
+        shipping !== undefined ||
+        additional_discount !== undefined ||
+        assembly_charges !== undefined
+      ) {
         const mailOptions = {
           from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
           to: user.email,
@@ -7382,7 +7565,9 @@ app.put(
                 <li><strong>Shipping Charges:</strong> $${newShipping.toFixed(
                   2
                 )}</li>
-                <li><strong>Assembly Charges:</strong> $${newAssemblyCharges.toFixed(2)}</li>
+                <li><strong>Assembly Charges:</strong> $${newAssemblyCharges.toFixed(
+                  2
+                )}</li>
                 <li><strong>Final Total:</strong> $${newTotal.toFixed(2)}</li>
               </ul>
               <p><strong>Next Steps:</strong></p>
@@ -7428,10 +7613,10 @@ app.put(
 // async function generateInvoiceNumbers(connection) {
 //   // Get last invoice number (only digits)
 //   const [rows] = await connection.query(
-//     `SELECT invoice_number 
-//      FROM invoices 
+//     `SELECT invoice_number
+//      FROM invoices
 //      WHERE invoice_number REGEXP '^[0-9]+$'
-//      ORDER BY CAST(invoice_number AS UNSIGNED) DESC 
+//      ORDER BY CAST(invoice_number AS UNSIGNED) DESC
 //      LIMIT 1`
 //   );
 
@@ -7473,11 +7658,11 @@ app.put(
 
 //       // Fetch order details
 //       const [orders] = await connection.query(
-//         `SELECT o.id, o.order_id, o.user_id, o.door_style, o.finish_type, o.stain_option, o.paint_option, 
-//               o.subtotal, o.tax, o.shipping, o.discount, o.additional_discount, o.total, o.status, 
-//               u.full_name, u.email 
-//        FROM orders o 
-//        LEFT JOIN users u ON o.user_id = u.id 
+//         `SELECT o.id, o.order_id, o.user_id, o.door_style, o.finish_type, o.stain_option, o.paint_option,
+//               o.subtotal, o.tax, o.shipping, o.discount, o.additional_discount, o.total, o.status,
+//               u.full_name, u.email
+//        FROM orders o
+//        LEFT JOIN users u ON o.user_id = u.id
 //        WHERE o.id = ?`,
 //         [id]
 //       );
@@ -7512,8 +7697,8 @@ app.put(
 //       if (status === "Cancelled") {
 //         // Fetch order items
 //         const [orderItems] = await connection.query(
-//           `SELECT sku, quantity 
-//          FROM order_items 
+//           `SELECT sku, quantity
+//          FROM order_items
 //          WHERE order_id = ?`,
 //           [order.id]
 //         );
@@ -7571,8 +7756,8 @@ app.put(
 
 //       // Fetch order items for email
 //       const [orderItems] = await connection.query(
-//         `SELECT sku, name, quantity, door_style, finish, price, total_amount 
-//        FROM order_items 
+//         `SELECT sku, name, quantity, door_style, finish, price, total_amount
+//        FROM order_items
 //        WHERE order_id = ?`,
 //         [order.id]
 //       );
@@ -7877,8 +8062,6 @@ app.put(
 //   }
 // );
 
-
-
 // ✅ New generateInvoiceNumbers – based on order_id, not DB auto-increment
 async function generateInvoiceNumbers(orderId) {
   // Example orderId: "S-ORD101335"
@@ -8042,7 +8225,9 @@ app.put(
               html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h2>Hello, ${user.full_name}!</h2>
-                <p>Fantastic news! Your order <strong>#${order.order_id}</strong> has been completed and shipped.</p>
+                <p>Fantastic news! Your order <strong>#${
+                  order.order_id
+                }</strong> has been completed and shipped.</p>
                 <p>Your invoice <strong>#${invoiceNumber}</strong> is now available in your customer portal.</p>
                 <h3>Invoice Details:</h3>
                 <table style="width: 100%; border-collapse: collapse;">
@@ -8060,9 +8245,15 @@ app.put(
                       .map(
                         (item) => `
                       <tr>
-                        <td style="border: 1px solid #ddd; padding: 8px;">${item.sku}</td>
-                        <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
-                        <td style="border: 1px solid #ddd; padding: 8px;">${item.quantity}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">${
+                          item.sku
+                        }</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">${
+                          item.name
+                        }</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">${
+                          item.quantity
+                        }</td>
                         <td style="border: 1px solid #ddd; padding: 8px;">$${parseFloat(
                           item.price || 0
                         ).toFixed(2)}</td>
@@ -8077,18 +8268,26 @@ app.put(
                 </table>
                 <h3 style="margin-top: 20px;">Summary:</h3>
                 <ul style="list-style: none; padding: 0;">
-                  <li><strong>Subtotal:</strong> $${parseFloat(order.subtotal).toFixed(2)}</li>
-                  <li><strong>Special Discount:</strong> $${parseFloat(order.discount || 0).toFixed(2)}</li>
+                  <li><strong>Subtotal:</strong> $${parseFloat(
+                    order.subtotal
+                  ).toFixed(2)}</li>
+                  <li><strong>Special Discount:</strong> $${parseFloat(
+                    order.discount || 0
+                  ).toFixed(2)}</li>
                   <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(
-                    order.additional_discount || 0
-                  ).toFixed(2)})</li>
-                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(2)}</li>
+                order.additional_discount || 0
+              ).toFixed(2)})</li>
+                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(
+                    2
+                  )}</li>
                   <li><strong>Shipping:</strong> ${
                     order.shipping !== null
                       ? `$${parseFloat(order.shipping).toFixed(2)}`
                       : "-"
                   }</li>
-                  <li><strong>Total:</strong> $${parseFloat(order.total).toFixed(2)}</li>
+                  <li><strong>Total:</strong> $${parseFloat(
+                    order.total
+                  ).toFixed(2)}</li>
                 </ul>
                 <p><strong>Next Steps:</strong></p>
                 <ul>
@@ -8107,49 +8306,91 @@ app.put(
             mailOptions = {
               from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
               to: user.email,
-              subject: `Your Order #${order.order_id} Has Been Accepted!`,
+              subject: `Your Order #${order.order_id} Has Been Accepted – Payment Required`,
               html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <h2>Hello, ${user.full_name}!</h2>
-                <p>Great news! Your order <strong>#${order.order_id}</strong> has been accepted and is now being processed.</p>
-                <h3>Order Details:</h3>
-                <ul style="list-style: none; padding: 0;">
-                  <li><strong>Order ID:</strong> ${order.order_id}</li>
-                  <li><strong>Door Style:</strong> ${order.door_style}</li>
-                  <li><strong>Finish Type:</strong> ${order.finish_type}</li>
-                  ${
-                    order.stain_option
-                      ? `<li><strong>Stain Option:</strong> ${order.stain_option}</li>`
-                      : ""
-                  }
-                  ${
-                    order.paint_option
-                      ? `<li><strong>Paint Option:</strong> ${order.paint_option}</li>`
-                      : ""
-                  }
-                  <li><strong>Subtotal:</strong> $${parseFloat(order.subtotal).toFixed(2)}</li>
-                  <li><strong>Special Discount:</strong> $${parseFloat(order.discount || 0).toFixed(2)}</li>
-                  <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(
-                    order.additional_discount || 0
-                  ).toFixed(2)})</li>
-                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(2)}</li>
-                  <li><strong>Shipping:</strong> ${
-                    order.shipping !== null
-                      ? `$${parseFloat(order.shipping).toFixed(2)}`
-                      : "-"
-                  }</li>
-                  <li><strong>Total:</strong> $${parseFloat(order.total).toFixed(2)}</li>
-                </ul>
-                <p><strong>Next Steps:</strong></p>
-                <ul>
-                  <li>Your order is now in the processing stage. We’ll notify you with updates on its progress.</li>
-                  <li>You can track your order status in your account at <a href="https://studiosignaturecabinets.com/customer/orders">My Orders</a>.</li>
-                </ul>
-                <p>If you have any questions, please contact our support team at <a href="mailto:info@studiosignaturecabinets.com">info@studiosignaturecabinets.com</a>.</p>
-                <p>Thank you for choosing Studio Signature Cabinets!</p>
-                <p>Best regards,<br>Team Studio Signature Cabinets</p>
-              </div>
-            `,
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2>Hello, ${user.full_name}!</h2>
+
+      <p>
+        We’re happy to inform you that your order 
+        <strong>#${order.order_id}</strong> has been <strong>accepted</strong>.
+      </p>
+
+      <p style="color: #d9534f; font-weight: bold;">
+        ✅ Next Step: Please complete your payment to proceed with order processing.
+      </p>
+
+      <h3>Order Summary</h3>
+      <ul style="list-style: none; padding: 0;">
+        <li><strong>Order ID:</strong> ${order.order_id}</li>
+        <li><strong>Door Style:</strong> ${order.door_style}</li>
+        <li><strong>Finish Type:</strong> ${order.finish_type}</li>
+        ${
+          order.stain_option
+            ? `<li><strong>Stain Option:</strong> ${order.stain_option}</li>`
+            : ""
+        }
+        ${
+          order.paint_option
+            ? `<li><strong>Paint Option:</strong> ${order.paint_option}</li>`
+            : ""
+        }
+        <li><strong>Subtotal:</strong> $${parseFloat(order.subtotal).toFixed(
+          2
+        )}</li>
+        <li><strong>Special Discount:</strong> $${parseFloat(
+          order.discount || 0
+        ).toFixed(2)}</li>
+        <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% 
+          ($${parseFloat(order.additional_discount || 0).toFixed(2)})
+        </li>
+        <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(2)}</li>
+        <li><strong>Shipping:</strong> ${
+          order.shipping !== null
+            ? `$${parseFloat(order.shipping).toFixed(2)}`
+            : "-"
+        }</li>
+        <li><strong>Total Amount:</strong> 
+          <span style="font-size: 16px; font-weight: bold;">
+            $${parseFloat(order.total).toFixed(2)}
+          </span>
+        </li>
+      </ul>
+
+      <div style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #007bff;">
+        <p style="margin: 0;">
+          👉 Please log in to your account and click <strong>Pay Now</strong> 
+          to complete the payment and move your order to processing.
+        </p>
+      </div>
+
+      <p>
+        🔗 <a href="https://studiosignaturecabinets.com/customer/orders" 
+              style="color: #007bff; font-weight: bold;">
+          Go to My Orders & Make Payment
+        </a>
+      </p>
+
+      <p>
+        Once payment is completed, your order will move to the 
+        <strong>Processing</strong> stage automatically.
+      </p>
+
+      <p>
+        If you have any questions or need assistance, feel free to contact us at
+        <a href="mailto:info@studiosignaturecabinets.com">
+          info@studiosignaturecabinets.com
+        </a>.
+      </p>
+
+      <p>Thank you for choosing Studio Signature Cabinets!</p>
+
+      <p>
+        Best regards,<br/>
+        <strong>Team Studio Signature Cabinets</strong>
+      </p>
+    </div>
+  `,
             };
             break;
 
@@ -8161,7 +8402,9 @@ app.put(
               html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h2>Hello, ${user.full_name}!</h2>
-                <p>Your order <strong>#${order.order_id}</strong> is now being processed. We're preparing your items for shipment.</p>
+                <p>Your order <strong>#${
+                  order.order_id
+                }</strong> is now being processed. We're preparing your items for shipment.</p>
                 <h3>Order Details:</h3>
                 <ul style="list-style: none; padding: 0;">
                   <li><strong>Order ID:</strong> ${order.order_id}</li>
@@ -8177,18 +8420,26 @@ app.put(
                       ? `<li><strong>Paint Option:</strong> ${order.paint_option}</li>`
                       : ""
                   }
-                  <li><strong>Subtotal:</strong> $${parseFloat(order.subtotal).toFixed(2)}</li>
-                  <li><strong>Special Discount:</strong> $${parseFloat(order.discount || 0).toFixed(2)}</li>
+                  <li><strong>Subtotal:</strong> $${parseFloat(
+                    order.subtotal
+                  ).toFixed(2)}</li>
+                  <li><strong>Special Discount:</strong> $${parseFloat(
+                    order.discount || 0
+                  ).toFixed(2)}</li>
                   <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(
-                    order.additional_discount || 0
-                  ).toFixed(2)})</li>
-                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(2)}</li>
+                order.additional_discount || 0
+              ).toFixed(2)})</li>
+                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(
+                    2
+                  )}</li>
                   <li><strong>Shipping:</strong> ${
                     order.shipping !== null
                       ? `$${parseFloat(order.shipping).toFixed(2)}`
                       : "-"
                   }</li>
-                  <li><strong>Total:</strong> $${parseFloat(order.total).toFixed(2)}</li>
+                  <li><strong>Total:</strong> $${parseFloat(
+                    order.total
+                  ).toFixed(2)}</li>
                 </ul>
                 <p><strong>Next Steps:</strong></p>
                 <ul>
@@ -8211,7 +8462,9 @@ app.put(
               html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h2>Hello, ${user.full_name}!</h2>
-                <p>We’re sorry to inform you that your order <strong>#${order.order_id}</strong> has been cancelled.</p>
+                <p>We’re sorry to inform you that your order <strong>#${
+                  order.order_id
+                }</strong> has been cancelled.</p>
                 <p><strong>Note:</strong> This order cannot be reinstated or modified once cancelled.</p>
                 <h3>Order Details:</h3>
                 <ul style="list-style: none; padding: 0;">
@@ -8228,18 +8481,26 @@ app.put(
                       ? `<li><strong>Paint Option:</strong> ${order.paint_option}</li>`
                       : ""
                   }
-                  <li><strong>Subtotal:</strong> $${parseFloat(order.subtotal).toFixed(2)}</li>
-                  <li><strong>Special Discount:</strong> $${parseFloat(order.discount || 0).toFixed(2)}</li>
+                  <li><strong>Subtotal:</strong> $${parseFloat(
+                    order.subtotal
+                  ).toFixed(2)}</li>
+                  <li><strong>Special Discount:</strong> $${parseFloat(
+                    order.discount || 0
+                  ).toFixed(2)}</li>
                   <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(
-                    order.additional_discount || 0
-                  ).toFixed(2)})</li>
-                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(2)}</li>
+                order.additional_discount || 0
+              ).toFixed(2)})</li>
+                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(
+                    2
+                  )}</li>
                   <li><strong>Shipping:</strong> ${
                     order.shipping !== null
                       ? `$${parseFloat(order.shipping).toFixed(2)}`
                       : "-"
                   }</li>
-                  <li><strong>Total:</strong> $${parseFloat(order.total).toFixed(2)}</li>
+                  <li><strong>Total:</strong> $${parseFloat(
+                    order.total
+                  ).toFixed(2)}</li>
                 </ul>
                 <p><strong>Next Steps:</strong></p>
                 <ul>
@@ -8279,13 +8540,6 @@ app.put(
     }
   }
 );
-
-
-
-
-
-
-
 
 cron.schedule("* * * * *", async () => {
   console.log(
@@ -9271,8 +9525,7 @@ app.get("/api/admin/items", adminauthenticateToken, async (req, res) => {
 
 app.post("/api/admin/items", adminauthenticateToken, async (req, res) => {
   try {
-
-     console.log("Headers:", req.headers);
+    console.log("Headers:", req.headers);
     console.log("Raw body:", req.body);
 
     const {
@@ -9292,7 +9545,16 @@ app.post("/api/admin/items", adminauthenticateToken, async (req, res) => {
       se,
       sw,
     } = req.body;
-console.log("Destructured values:", { sku, description, item_type, unit_of_measure, color, price, qty, unitcost });
+    console.log("Destructured values:", {
+      sku,
+      description,
+      item_type,
+      unit_of_measure,
+      color,
+      price,
+      qty,
+      unitcost,
+    });
     // Validate required fields
     if (
       !sku ||
@@ -9340,7 +9602,6 @@ console.log("Destructured values:", { sku, description, item_type, unit_of_measu
     res.status(500).json({ error: "Failed to create item" });
   }
 });
-
 
 // app.put("/api/admin/items/:id", adminauthenticateToken, async (req, res) => {
 //   try {
@@ -9443,7 +9704,6 @@ app.put("/api/admin/items/:id", adminauthenticateToken, async (req, res) => {
     res.status(500).json({ error: "Failed to update item" });
   }
 });
-
 
 app.delete("/api/admin/items/:id", adminauthenticateToken, async (req, res) => {
   try {
@@ -9725,7 +9985,6 @@ const excelupload = multer({
 //   }
 // );
 
-
 app.post(
   "/api/admin/import-items",
   adminauthenticateToken,
@@ -9792,7 +10051,9 @@ app.post(
               ? parseFloat(itemKeys["unit cost"])
               : "0.00";
           const qty =
-            itemKeys["quantity"] !== undefined ? parseFloat(itemKeys["quantity"]) : 0;
+            itemKeys["quantity"] !== undefined
+              ? parseFloat(itemKeys["quantity"])
+              : 0;
 
           console.log(
             `Row ${
@@ -9861,16 +10122,16 @@ app.post(
   }
 );
 
-
-
-app.delete('/api/admin/allitems', authenticateToken, async (req, res) => {
+app.delete("/api/admin/allitems", authenticateToken, async (req, res) => {
   try {
     // Execute SQL query to delete all items
-    await pool.query('DELETE FROM items');
-    res.status(200).json({ message: 'All items deleted successfully' });
+    await pool.query("DELETE FROM items");
+    res.status(200).json({ message: "All items deleted successfully" });
   } catch (err) {
-    console.error('Error deleting all items:', err);
-    res.status(500).json({ error: 'Failed to delete all items', details: err.message });
+    console.error("Error deleting all items:", err);
+    res
+      .status(500)
+      .json({ error: "Failed to delete all items", details: err.message });
   }
 });
 
@@ -9960,7 +10221,7 @@ app.delete('/api/admin/allitems', authenticateToken, async (req, res) => {
 //           await connection.query(
 //             `INSERT INTO specialitems (
 //             sku, description, item_type, search_description, unit_of_measure, price, color, qty,unitcost
-           
+
 //           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 //             [
 //               sku,
@@ -9972,7 +10233,7 @@ app.delete('/api/admin/allitems', authenticateToken, async (req, res) => {
 //               color,
 //               qty,
 //               unitcost,
-             
+
 //             ]
 //           );
 //         }
@@ -10003,7 +10264,6 @@ app.delete('/api/admin/allitems', authenticateToken, async (req, res) => {
 //   }
 // );
 
-
 // app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
 //   try {
 //     const { sku, item_type, color } = req.query;
@@ -10032,7 +10292,6 @@ app.delete('/api/admin/allitems', authenticateToken, async (req, res) => {
 //   }
 // });
 
-
 // app.post("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
 //   try {
 //     const {
@@ -10045,7 +10304,7 @@ app.delete('/api/admin/allitems', authenticateToken, async (req, res) => {
 //       qty,
 //       unitcost, // Added unitcost
 //       search_description,
-     
+
 //     } = req.body;
 
 //     // Validate required fields
@@ -10077,7 +10336,7 @@ app.delete('/api/admin/allitems', authenticateToken, async (req, res) => {
 //         price,
 //         qty,
 //         unitcost, // Added unitcost to query
-     
+
 //       ]
 //     );
 
@@ -10106,7 +10365,6 @@ app.delete('/api/admin/allitems', authenticateToken, async (req, res) => {
 //     res.status(500).json({ error: "Failed to delete item" });
 //   }
 // });
-
 
 // app.put("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) => {
 //   try {
@@ -10165,11 +10423,8 @@ app.delete('/api/admin/allitems', authenticateToken, async (req, res) => {
 //   }
 // });
 
-
-
-
-
-app.post("/api/admin/import-specialitems",
+app.post(
+  "/api/admin/import-specialitems",
   adminauthenticateToken,
   excelupload.single("file"),
   async (req, res) => {
@@ -10267,7 +10522,6 @@ app.post("/api/admin/import-specialitems",
               color,
               qty,
               unitcost,
-             
             ]
           );
         }
@@ -10314,7 +10568,7 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
       FROM specialitems si
       LEFT JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
       WHERE 1=1`;
-    
+
     const params = [];
 
     if (customerId) {
@@ -10323,10 +10577,10 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
     }
 
     const [rows] = await pool.query(query, params);
-    
+
     // Group by item and include customer prices
     const itemsMap = new Map();
-    rows.forEach(row => {
+    rows.forEach((row) => {
       if (!itemsMap.has(row.id)) {
         itemsMap.set(row.id, {
           id: row.id,
@@ -10341,15 +10595,15 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
           unitcost: row.unitcost,
           created_at: row.created_at,
           updated_at: row.updated_at,
-          customer_prices: []
+          customer_prices: [],
         });
       }
-      
+
       if (row.customer_id) {
         itemsMap.get(row.id).customer_prices.push({
           customer_id: row.customer_id,
           price: row.customer_price,
-          unitcost: row.customer_unitcost
+          unitcost: row.customer_unitcost,
         });
       }
     });
@@ -10362,105 +10616,110 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
   }
 });
 
-
 // Create special item with customer prices - Only save in mapping table
-app.post("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
-  try {
-    const {
-      sku,
-      description,
-      item_type,
-      unit_of_measure,
-      color,
-      price,
-      qty,
-      unitcost,
-      search_description,
-      customerPrices = []
-    } = req.body;
-
-    // Validate required fields
-    if (!sku || !description || !item_type || !unit_of_measure || !color) {
-      return res.status(400).json({
-        error: "Missing required fields.",
-      });
-    }
-
-    // Start transaction
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
-
+app.post(
+  "/api/admin/specialitems",
+  adminauthenticateToken,
+  async (req, res) => {
     try {
-      // Insert into specialitems without price, qty, unitcost
-      const [result] = await connection.query(
-        `INSERT INTO specialitems 
-         (sku, description, item_type, search_description, unit_of_measure, color) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          sku,
-          description,
-          item_type.toUpperCase(),
-          search_description || null,
-          unit_of_measure,
-          color,
-        ]
-      );
+      const {
+        sku,
+        description,
+        item_type,
+        unit_of_measure,
+        color,
+        price,
+        qty,
+        unitcost,
+        search_description,
+        customerPrices = [],
+      } = req.body;
 
-      const newItemId = result.insertId;
-
-      // Insert customer-price mappings if provided - This is where prices are saved
-      if (Array.isArray(customerPrices) && customerPrices.length > 0) {
-        const customerIdsToUpdate = new Set(); // Track unique customer IDs
-        
-        for (const cp of customerPrices) {
-          // Validate that customer exists before inserting
-          const [customerExists] = await connection.query(
-            "SELECT id, special_cust FROM users WHERE id = ?",
-            [cp.customerId]
-          );
-          
-          if (customerExists.length === 0) {
-            await connection.rollback();
-            return res.status(400).json({
-              error: `Customer with ID ${cp.customerId} does not exist.`
-            });
-          }
-
-          // Add customer ID to update set
-          customerIdsToUpdate.add(cp.customerId);
-
-          await connection.query(
-            `INSERT INTO customer_specialitem_prices 
-             (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-            [
-              cp.customerId, 
-              newItemId, 
-              cp.price || 0, 
-              cp.unitcost || 0,
-              cp.qty || 0 // Use cp.qty from customerPrices
-            ]
-          );
-        }
-
-        // Update special_cust flag for customers (only if currently 0)
-        if (customerIdsToUpdate.size > 0) {
-          const customerIdsArray = Array.from(customerIdsToUpdate);
-          await connection.query(
-            `UPDATE users SET special_cust = 1, updated_at = NOW() 
-             WHERE id IN (?) AND special_cust = 0`,
-            [customerIdsArray]
-          );
-        }
-      } else {
-        // If no customer prices provided, just create the item without any price mappings
-        console.log("No customer prices provided, creating item without price mappings");
+      // Validate required fields
+      if (!sku || !description || !item_type || !unit_of_measure || !color) {
+        return res.status(400).json({
+          error: "Missing required fields.",
+        });
       }
 
-      await connection.commit();
+      // Start transaction
+      const connection = await pool.getConnection();
+      await connection.beginTransaction();
 
-      // Fetch complete item data with customer prices
-      const [newItemRows] = await pool.query(`
+      try {
+        // Insert into specialitems without price, qty, unitcost
+        const [result] = await connection.query(
+          `INSERT INTO specialitems 
+         (sku, description, item_type, search_description, unit_of_measure, color) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            sku,
+            description,
+            item_type.toUpperCase(),
+            search_description || null,
+            unit_of_measure,
+            color,
+          ]
+        );
+
+        const newItemId = result.insertId;
+
+        // Insert customer-price mappings if provided - This is where prices are saved
+        if (Array.isArray(customerPrices) && customerPrices.length > 0) {
+          const customerIdsToUpdate = new Set(); // Track unique customer IDs
+
+          for (const cp of customerPrices) {
+            // Validate that customer exists before inserting
+            const [customerExists] = await connection.query(
+              "SELECT id, special_cust FROM users WHERE id = ?",
+              [cp.customerId]
+            );
+
+            if (customerExists.length === 0) {
+              await connection.rollback();
+              return res.status(400).json({
+                error: `Customer with ID ${cp.customerId} does not exist.`,
+              });
+            }
+
+            // Add customer ID to update set
+            customerIdsToUpdate.add(cp.customerId);
+
+            await connection.query(
+              `INSERT INTO customer_specialitem_prices 
+             (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+              [
+                cp.customerId,
+                newItemId,
+                cp.price || 0,
+                cp.unitcost || 0,
+                cp.qty || 0, // Use cp.qty from customerPrices
+              ]
+            );
+          }
+
+          // Update special_cust flag for customers (only if currently 0)
+          if (customerIdsToUpdate.size > 0) {
+            const customerIdsArray = Array.from(customerIdsToUpdate);
+            await connection.query(
+              `UPDATE users SET special_cust = 1, updated_at = NOW() 
+             WHERE id IN (?) AND special_cust = 0`,
+              [customerIdsArray]
+            );
+          }
+        } else {
+          // If no customer prices provided, just create the item without any price mappings
+          console.log(
+            "No customer prices provided, creating item without price mappings"
+          );
+        }
+
+        await connection.commit();
+
+        // Fetch complete item data with customer prices
+        const [newItemRows] = await pool.query(
+          `
         SELECT 
           si.*,
           JSON_ARRAYAGG(
@@ -10475,30 +10734,30 @@ app.post("/api/admin/specialitems", adminauthenticateToken, async (req, res) => 
         LEFT JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
         WHERE si.id = ?
         GROUP BY si.id
-      `, [newItemId]);
+      `,
+          [newItemId]
+        );
 
-      res.status(201).json({ 
-        item: {
-          ...newItemRows[0],
-          customer_prices: newItemRows[0].customer_prices ? newItemRows[0].customer_prices.filter(cp => cp.customer_id) : []
-        }
-      });
-
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
+        res.status(201).json({
+          item: {
+            ...newItemRows[0],
+            customer_prices: newItemRows[0].customer_prices
+              ? newItemRows[0].customer_prices.filter((cp) => cp.customer_id)
+              : [],
+          },
+        });
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+    } catch (err) {
+      console.error("Error creating item:", err);
+      res.status(500).json({ error: "Failed to create item" });
     }
-  } catch (err) {
-    console.error("Error creating item:", err);
-    res.status(500).json({ error: "Failed to create item" });
   }
-});
-
-
-
-
+);
 
 // Get special items with customer prices
 app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
@@ -10516,7 +10775,7 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
       FROM specialitems si
       LEFT JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
       WHERE 1=1`;
-    
+
     const params = [];
 
     if (customerId) {
@@ -10525,10 +10784,10 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
     }
 
     const [rows] = await pool.query(query, params);
-    
+
     // Group by item and include customer prices
     const itemsMap = new Map();
-    rows.forEach(row => {
+    rows.forEach((row) => {
       if (!itemsMap.has(row.id)) {
         itemsMap.set(row.id, {
           id: row.id,
@@ -10543,15 +10802,15 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
           unitcost: row.unitcost,
           created_at: row.created_at,
           updated_at: row.updated_at,
-          customer_prices: []
+          customer_prices: [],
         });
       }
-      
+
       if (row.customer_id) {
         itemsMap.get(row.id).customer_prices.push({
           customer_id: row.customer_id,
           price: row.customer_price,
-          unitcost: row.customer_unitcost
+          unitcost: row.customer_unitcost,
         });
       }
     });
@@ -10564,105 +10823,110 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
   }
 });
 
-
 // Create special item with customer prices - Only save in mapping table
-app.post("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
-  try {
-    const {
-      sku,
-      description,
-      item_type,
-      unit_of_measure,
-      color,
-      price,
-      qty,
-      unitcost,
-      search_description,
-      customerPrices = []
-    } = req.body;
-
-    // Validate required fields
-    if (!sku || !description || !item_type || !unit_of_measure || !color) {
-      return res.status(400).json({
-        error: "Missing required fields.",
-      });
-    }
-
-    // Start transaction
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
-
+app.post(
+  "/api/admin/specialitems",
+  adminauthenticateToken,
+  async (req, res) => {
     try {
-      // Insert into specialitems without price, qty, unitcost
-      const [result] = await connection.query(
-        `INSERT INTO specialitems 
-         (sku, description, item_type, search_description, unit_of_measure, color) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          sku,
-          description,
-          item_type.toUpperCase(),
-          search_description || null,
-          unit_of_measure,
-          color,
-        ]
-      );
+      const {
+        sku,
+        description,
+        item_type,
+        unit_of_measure,
+        color,
+        price,
+        qty,
+        unitcost,
+        search_description,
+        customerPrices = [],
+      } = req.body;
 
-      const newItemId = result.insertId;
-
-      // Insert customer-price mappings if provided - This is where prices are saved
-      if (Array.isArray(customerPrices) && customerPrices.length > 0) {
-        const customerIdsToUpdate = new Set(); // Track unique customer IDs
-        
-        for (const cp of customerPrices) {
-          // Validate that customer exists before inserting
-          const [customerExists] = await connection.query(
-            "SELECT id, special_cust FROM users WHERE id = ?",
-            [cp.customerId]
-          );
-          
-          if (customerExists.length === 0) {
-            await connection.rollback();
-            return res.status(400).json({
-              error: `Customer with ID ${cp.customerId} does not exist.`
-            });
-          }
-
-          // Add customer ID to update set
-          customerIdsToUpdate.add(cp.customerId);
-
-          await connection.query(
-            `INSERT INTO customer_specialitem_prices 
-             (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-            [
-              cp.customerId, 
-              newItemId, 
-              cp.price || 0, 
-              cp.unitcost || 0,
-              cp.qty || 0 // Use cp.qty from customerPrices
-            ]
-          );
-        }
-
-        // Update special_cust flag for customers (only if currently 0)
-        if (customerIdsToUpdate.size > 0) {
-          const customerIdsArray = Array.from(customerIdsToUpdate);
-          await connection.query(
-            `UPDATE users SET special_cust = 1, updated_at = NOW() 
-             WHERE id IN (?) AND special_cust = 0`,
-            [customerIdsArray]
-          );
-        }
-      } else {
-        // If no customer prices provided, just create the item without any price mappings
-        console.log("No customer prices provided, creating item without price mappings");
+      // Validate required fields
+      if (!sku || !description || !item_type || !unit_of_measure || !color) {
+        return res.status(400).json({
+          error: "Missing required fields.",
+        });
       }
 
-      await connection.commit();
+      // Start transaction
+      const connection = await pool.getConnection();
+      await connection.beginTransaction();
 
-      // Fetch complete item data with customer prices
-      const [newItemRows] = await pool.query(`
+      try {
+        // Insert into specialitems without price, qty, unitcost
+        const [result] = await connection.query(
+          `INSERT INTO specialitems 
+         (sku, description, item_type, search_description, unit_of_measure, color) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            sku,
+            description,
+            item_type.toUpperCase(),
+            search_description || null,
+            unit_of_measure,
+            color,
+          ]
+        );
+
+        const newItemId = result.insertId;
+
+        // Insert customer-price mappings if provided - This is where prices are saved
+        if (Array.isArray(customerPrices) && customerPrices.length > 0) {
+          const customerIdsToUpdate = new Set(); // Track unique customer IDs
+
+          for (const cp of customerPrices) {
+            // Validate that customer exists before inserting
+            const [customerExists] = await connection.query(
+              "SELECT id, special_cust FROM users WHERE id = ?",
+              [cp.customerId]
+            );
+
+            if (customerExists.length === 0) {
+              await connection.rollback();
+              return res.status(400).json({
+                error: `Customer with ID ${cp.customerId} does not exist.`,
+              });
+            }
+
+            // Add customer ID to update set
+            customerIdsToUpdate.add(cp.customerId);
+
+            await connection.query(
+              `INSERT INTO customer_specialitem_prices 
+             (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+              [
+                cp.customerId,
+                newItemId,
+                cp.price || 0,
+                cp.unitcost || 0,
+                cp.qty || 0, // Use cp.qty from customerPrices
+              ]
+            );
+          }
+
+          // Update special_cust flag for customers (only if currently 0)
+          if (customerIdsToUpdate.size > 0) {
+            const customerIdsArray = Array.from(customerIdsToUpdate);
+            await connection.query(
+              `UPDATE users SET special_cust = 1, updated_at = NOW() 
+             WHERE id IN (?) AND special_cust = 0`,
+              [customerIdsArray]
+            );
+          }
+        } else {
+          // If no customer prices provided, just create the item without any price mappings
+          console.log(
+            "No customer prices provided, creating item without price mappings"
+          );
+        }
+
+        await connection.commit();
+
+        // Fetch complete item data with customer prices
+        const [newItemRows] = await pool.query(
+          `
         SELECT 
           si.*,
           JSON_ARRAYAGG(
@@ -10677,137 +10941,149 @@ app.post("/api/admin/specialitems", adminauthenticateToken, async (req, res) => 
         LEFT JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
         WHERE si.id = ?
         GROUP BY si.id
-      `, [newItemId]);
+      `,
+          [newItemId]
+        );
 
-      res.status(201).json({ 
-        item: {
-          ...newItemRows[0],
-          customer_prices: newItemRows[0].customer_prices ? newItemRows[0].customer_prices.filter(cp => cp.customer_id) : []
-        }
-      });
-
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
+        res.status(201).json({
+          item: {
+            ...newItemRows[0],
+            customer_prices: newItemRows[0].customer_prices
+              ? newItemRows[0].customer_prices.filter((cp) => cp.customer_id)
+              : [],
+          },
+        });
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+    } catch (err) {
+      console.error("Error creating item:", err);
+      res.status(500).json({ error: "Failed to create item" });
     }
-  } catch (err) {
-    console.error("Error creating item:", err);
-    res.status(500).json({ error: "Failed to create item" });
   }
-});
-
+);
 
 // Update special item - Prices only in mapping table
-app.put("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const {
-      sku,
-      description,
-      item_type,
-      unit_of_measure,
-      color,
-      price,
-      qty,
-      unitcost,
-      customerPrices = [],
-      search_description,
-    } = req.body;
-
-    // Validate required fields
-    if (!sku || !description || !item_type || !unit_of_measure || !color) {
-      return res.status(400).json({
-        error: "Missing required fields.",
-      });
-    }
-
-    // Start transaction
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
-
+app.put(
+  "/api/admin/specialitems/:id",
+  adminauthenticateToken,
+  async (req, res) => {
     try {
-      // Update specialitems record WITHOUT price, qty, unitcost
-      const [result] = await connection.query(
-        `UPDATE specialitems 
+      const id = req.params.id;
+      const {
+        sku,
+        description,
+        item_type,
+        unit_of_measure,
+        color,
+        price,
+        qty,
+        unitcost,
+        customerPrices = [],
+        search_description,
+      } = req.body;
+
+      // Validate required fields
+      if (!sku || !description || !item_type || !unit_of_measure || !color) {
+        return res.status(400).json({
+          error: "Missing required fields.",
+        });
+      }
+
+      // Start transaction
+      const connection = await pool.getConnection();
+      await connection.beginTransaction();
+
+      try {
+        // Update specialitems record WITHOUT price, qty, unitcost
+        const [result] = await connection.query(
+          `UPDATE specialitems 
          SET sku=?, description=?, item_type=?, unit_of_measure=?, color=?, 
              search_description=?, updated_at=NOW()
          WHERE id=?`,
-        [
-          sku, 
-          description, 
-          item_type.toUpperCase(), 
-          unit_of_measure, 
-          color, 
-          search_description, 
-          id
-        ]
-      );
+          [
+            sku,
+            description,
+            item_type.toUpperCase(),
+            unit_of_measure,
+            color,
+            search_description,
+            id,
+          ]
+        );
 
-      if (result.affectedRows === 0) {
-        await connection.rollback();
-        return res.status(404).json({ error: "Item not found" });
-      }
+        if (result.affectedRows === 0) {
+          await connection.rollback();
+          return res.status(404).json({ error: "Item not found" });
+        }
 
-      // Handle customer-specific prices
-      if (Array.isArray(customerPrices) && customerPrices.length > 0) {
-        console.log(`Updating ${customerPrices.length} specific customer price mappings for item ${id}`);
-        
-        // Update ONLY the specified customer mappings
-        for (const cp of customerPrices) {
-          // Validate that customer exists
-          const [customerCheck] = await connection.query(
-            "SELECT id FROM users WHERE id = ? AND user_type = 'customer'",
-            [cp.customerId]
+        // Handle customer-specific prices
+        if (Array.isArray(customerPrices) && customerPrices.length > 0) {
+          console.log(
+            `Updating ${customerPrices.length} specific customer price mappings for item ${id}`
           );
 
-          if (customerCheck.length > 0) {
-            await connection.query(
-              `INSERT INTO customer_specialitem_prices 
+          // Update ONLY the specified customer mappings
+          for (const cp of customerPrices) {
+            // Validate that customer exists
+            const [customerCheck] = await connection.query(
+              "SELECT id FROM users WHERE id = ? AND user_type = 'customer'",
+              [cp.customerId]
+            );
+
+            if (customerCheck.length > 0) {
+              await connection.query(
+                `INSERT INTO customer_specialitem_prices 
                (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, NOW(), NOW())
                ON DUPLICATE KEY UPDATE 
                price=VALUES(price), unitcost=VALUES(unitcost), qty=VALUES(qty), updated_at=NOW()`,
-              [
-                cp.customerId, 
-                id, 
-                parseFloat(cp.price) || 0, 
-                parseFloat(cp.unitcost) || 0,
-                parseFloat(cp.qty) || 0
-              ]
-            );
-            console.log(`Updated price for customer ${cp.customerId}, item ${id}`);
-          } else {
-            console.warn(`Skipping invalid customer ID: ${cp.customerId}`);
+                [
+                  cp.customerId,
+                  id,
+                  parseFloat(cp.price) || 0,
+                  parseFloat(cp.unitcost) || 0,
+                  parseFloat(cp.qty) || 0,
+                ]
+              );
+              console.log(
+                `Updated price for customer ${cp.customerId}, item ${id}`
+              );
+            } else {
+              console.warn(`Skipping invalid customer ID: ${cp.customerId}`);
+            }
           }
+        } else {
+          // If no customerPrices provided, DO NOT update any customer mappings
+          // Only update the main item details
+          console.log(
+            `No customer prices provided, only updating main item details for item ${id}`
+          );
         }
-      } else {
-        // If no customerPrices provided, DO NOT update any customer mappings
-        // Only update the main item details
-        console.log(`No customer prices provided, only updating main item details for item ${id}`);
+
+        await connection.commit();
+        res.json({ message: "Item updated successfully" });
+      } catch (error) {
+        await connection.rollback();
+        console.error("Transaction error:", error);
+        throw error;
+      } finally {
+        connection.release();
       }
-
-      await connection.commit();
-      res.json({ message: "Item updated successfully" });
-
-    } catch (error) {
-      await connection.rollback();
-      console.error("Transaction error:", error);
-      throw error;
-    } finally {
-      connection.release();
+    } catch (err) {
+      console.error("Error updating item:", err);
+      res.status(500).json({ error: "Failed to update item: " + err.message });
     }
-  } catch (err) {
-    console.error("Error updating item:", err);
-    res.status(500).json({ error: "Failed to update item: " + err.message });
   }
-});
+);
 // Get special items with customer prices
 app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
   try {
     const { customerId } = req.query;
-    
+
     let query;
     let params = [];
 
@@ -10852,22 +11128,25 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
 
     const [rows] = await pool.query(query, params);
     res.json(rows);
-    
   } catch (err) {
     console.error("Error fetching items:", err);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Failed to fetch items",
-      details: err.message 
+      details: err.message,
     });
   }
 });
 
 // Get items for specific customer
-app.get("/api/admin/customer/:customerId/specialitems", adminauthenticateToken, async (req, res) => {
-  try {
-    const { customerId } = req.params;
-    
-    const [rows] = await pool.query(`
+app.get(
+  "/api/admin/customer/:customerId/specialitems",
+  adminauthenticateToken,
+  async (req, res) => {
+    try {
+      const { customerId } = req.params;
+
+      const [rows] = await pool.query(
+        `
       SELECT 
         si.id, si.sku, si.description, si.item_type, 
         si.unit_of_measure, si.color, 
@@ -10879,273 +11158,310 @@ app.get("/api/admin/customer/:customerId/specialitems", adminauthenticateToken, 
       INNER JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
       WHERE csip.customer_id = ?
       ORDER BY si.sku
-    `, [customerId]);
+    `,
+        [customerId]
+      );
 
-    res.json(rows);
-  } catch (err) {
-    console.error("Error fetching customer items:", err);
-    res.status(500).json({ error: "Failed to fetch customer items" });
+      res.json(rows);
+    } catch (err) {
+      console.error("Error fetching customer items:", err);
+      res.status(500).json({ error: "Failed to fetch customer items" });
+    }
   }
-});
+);
 // Bulk import customer-item prices
-app.post("/api/admin/customer-specialitem-prices/bulk", adminauthenticateToken, async (req, res) => {
-  try {
-    const { customerIds, items } = req.body;
-
-    // ENHANCED DEBUGGING
-    console.log("=== BACKEND: BULK IMPORT REQUEST ===");
-    console.log("Customer IDs:", customerIds);
-    console.log("Number of items:", items.length);
-    
-    // Log ALL items with their prices
-    console.log("ALL ITEMS WITH PRICES:");
-    items.forEach((item, index) => {
-      console.log(`Item ${index}: ${item.sku} | Price: ${item.price} | UnitCost: ${item.unitcost}`);
-    });
-
-    if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
-      return res.status(400).json({ error: "Customer IDs are required" });
-    }
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: "Items are required" });
-    }
-
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
-
+app.post(
+  "/api/admin/customer-specialitem-prices/bulk",
+  adminauthenticateToken,
+  async (req, res) => {
     try {
-      const allCustomerIdsToUpdate = new Set(customerIds);
+      const { customerIds, items } = req.body;
 
-      for (const itemData of items) {
-        const { sku, description, item_type, unit_of_measure, color, price, qty, unitcost } = itemData;
+      // ENHANCED DEBUGGING
+      console.log("=== BACKEND: BULK IMPORT REQUEST ===");
+      console.log("Customer IDs:", customerIds);
+      console.log("Number of items:", items.length);
 
-        // BACKEND DEBUG: Log each item being processed
-        console.log(`BACKEND Processing: ${sku}`, {
-          price: price,
-          unitcost: unitcost,
-          qty: qty
-        });
-
-        // Check if item exists
-        let [existingItems] = await connection.query(
-          "SELECT id FROM specialitems WHERE sku = ?",
-          [sku]
+      // Log ALL items with their prices
+      console.log("ALL ITEMS WITH PRICES:");
+      items.forEach((item, index) => {
+        console.log(
+          `Item ${index}: ${item.sku} | Price: ${item.price} | UnitCost: ${item.unitcost}`
         );
+      });
 
-        let specialItemId;
-        if (existingItems.length > 0) {
-          specialItemId = existingItems[0].id;
-          console.log(`Using existing item ID ${specialItemId} for SKU: ${sku}`);
-        } else {
-          const [insertResult] = await connection.query(
-            `INSERT INTO specialitems 
-             (sku, description, item_type, unit_of_measure, color, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-            [sku, description, item_type, unit_of_measure, color]
-          );
-          specialItemId = insertResult.insertId;
-          console.log(`Created new item ID ${specialItemId} for SKU: ${sku}`);
-        }
+      if (
+        !customerIds ||
+        !Array.isArray(customerIds) ||
+        customerIds.length === 0
+      ) {
+        return res.status(400).json({ error: "Customer IDs are required" });
+      }
 
-        // Create/update customer price mappings
-        for (const customerId of customerIds) {
-          console.log(`BACKEND Setting prices for customer ${customerId}, item ${specialItemId}:`, {
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: "Items are required" });
+      }
+
+      const connection = await pool.getConnection();
+      await connection.beginTransaction();
+
+      try {
+        const allCustomerIdsToUpdate = new Set(customerIds);
+
+        for (const itemData of items) {
+          const {
+            sku,
+            description,
+            item_type,
+            unit_of_measure,
+            color,
+            price,
+            qty,
+            unitcost,
+          } = itemData;
+
+          // BACKEND DEBUG: Log each item being processed
+          console.log(`BACKEND Processing: ${sku}`, {
             price: price,
             unitcost: unitcost,
-            qty: qty
+            qty: qty,
           });
 
-          await connection.query(
-            `INSERT INTO customer_specialitem_prices 
+          // Check if item exists
+          let [existingItems] = await connection.query(
+            "SELECT id FROM specialitems WHERE sku = ?",
+            [sku]
+          );
+
+          let specialItemId;
+          if (existingItems.length > 0) {
+            specialItemId = existingItems[0].id;
+            console.log(
+              `Using existing item ID ${specialItemId} for SKU: ${sku}`
+            );
+          } else {
+            const [insertResult] = await connection.query(
+              `INSERT INTO specialitems 
+             (sku, description, item_type, unit_of_measure, color, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+              [sku, description, item_type, unit_of_measure, color]
+            );
+            specialItemId = insertResult.insertId;
+            console.log(`Created new item ID ${specialItemId} for SKU: ${sku}`);
+          }
+
+          // Create/update customer price mappings
+          for (const customerId of customerIds) {
+            console.log(
+              `BACKEND Setting prices for customer ${customerId}, item ${specialItemId}:`,
+              {
+                price: price,
+                unitcost: unitcost,
+                qty: qty,
+              }
+            );
+
+            await connection.query(
+              `INSERT INTO customer_specialitem_prices 
              (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, NOW(), NOW())
              ON DUPLICATE KEY UPDATE 
              price=VALUES(price), unitcost=VALUES(unitcost), qty=VALUES(qty), updated_at=NOW()`,
-            [customerId, specialItemId, price || 0, unitcost || 0, qty || 0]
+              [customerId, specialItemId, price || 0, unitcost || 0, qty || 0]
+            );
+          }
+        }
+
+        // Update special_cust flag
+        if (allCustomerIdsToUpdate.size > 0) {
+          const customerIdsArray = Array.from(allCustomerIdsToUpdate);
+          await connection.query(
+            `UPDATE users SET special_cust = 1, updated_at = NOW() 
+           WHERE id IN (?) AND special_cust = 0`,
+            [customerIdsArray]
           );
         }
+
+        await connection.commit();
+        res.json({
+          message: "Bulk import completed successfully",
+          details: {
+            customersProcessed: customerIds.length,
+            itemsProcessed: items.length,
+            totalMappings: customerIds.length * items.length,
+          },
+        });
+      } catch (error) {
+        await connection.rollback();
+        console.error("Transaction error in bulk import:", error);
+        throw error;
+      } finally {
+        connection.release();
       }
-
-      // Update special_cust flag
-      if (allCustomerIdsToUpdate.size > 0) {
-        const customerIdsArray = Array.from(allCustomerIdsToUpdate);
-        await connection.query(
-          `UPDATE users SET special_cust = 1, updated_at = NOW() 
-           WHERE id IN (?) AND special_cust = 0`,
-          [customerIdsArray]
-        );
-      }
-
-      await connection.commit();
-      res.json({ 
-        message: "Bulk import completed successfully",
-        details: {
-          customersProcessed: customerIds.length,
-          itemsProcessed: items.length,
-          totalMappings: customerIds.length * items.length
-        }
-      });
-
-    } catch (error) {
-      await connection.rollback();
-      console.error("Transaction error in bulk import:", error);
-      throw error;
-    } finally {
-      connection.release();
+    } catch (err) {
+      console.error("Bulk import error:", err);
+      res.status(500).json({ error: "Failed to import data: " + err.message });
     }
-  } catch (err) {
-    console.error("Bulk import error:", err);
-    res.status(500).json({ error: "Failed to import data: " + err.message });
   }
-});
+);
 // Delete all mappings for a specific customer - Update special_cust flag to 0
-app.delete("/api/admin/customer-specialitem-prices/all", adminauthenticateToken, async (req, res) => {
-  try {
-    const { customerId } = req.query;
-
-    if (!customerId) {
-      return res.status(400).json({ error: "Customer ID is required" });
-    }
-
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
-
+app.delete(
+  "/api/admin/customer-specialitem-prices/all",
+  adminauthenticateToken,
+  async (req, res) => {
     try {
-      // First delete all customer price mappings
-      const [result] = await connection.query(
-        "DELETE FROM customer_specialitem_prices WHERE customer_id = ?",
-        [customerId]
-      );
+      const { customerId } = req.query;
 
-      // Update special_cust flag to 0 in users table since all mappings are deleted
-      await connection.query(
-        "UPDATE users SET special_cust = 0, updated_at = NOW() WHERE id = ?",
-        [customerId]
-      );
+      if (!customerId) {
+        return res.status(400).json({ error: "Customer ID is required" });
+      }
 
-      await connection.commit();
-      
-      res.json({ 
-        message: `Deleted ${result.affectedRows} price mappings for customer ${customerId} and updated special_cust flag to 0`,
-        deletedCount: result.affectedRows,
-        specialCustUpdated: true
-      });
+      const connection = await pool.getConnection();
+      await connection.beginTransaction();
 
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
+      try {
+        // First delete all customer price mappings
+        const [result] = await connection.query(
+          "DELETE FROM customer_specialitem_prices WHERE customer_id = ?",
+          [customerId]
+        );
+
+        // Update special_cust flag to 0 in users table since all mappings are deleted
+        await connection.query(
+          "UPDATE users SET special_cust = 0, updated_at = NOW() WHERE id = ?",
+          [customerId]
+        );
+
+        await connection.commit();
+
+        res.json({
+          message: `Deleted ${result.affectedRows} price mappings for customer ${customerId} and updated special_cust flag to 0`,
+          deletedCount: result.affectedRows,
+          specialCustUpdated: true,
+        });
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+    } catch (err) {
+      console.error("Error deleting customer price mappings:", err);
+      res
+        .status(500)
+        .json({ error: "Failed to delete customer price mappings" });
     }
-  } catch (err) {
-    console.error("Error deleting customer price mappings:", err);
-    res.status(500).json({ error: "Failed to delete customer price mappings" });
   }
-});
+);
 
 // Delete specific customer price mapping - DO NOT update special_cust flag
-app.delete("/api/admin/customer-specialitem-prices", adminauthenticateToken, async (req, res) => {
-  try {
-    const { customerId, specialitemId } = req.query;
+app.delete(
+  "/api/admin/customer-specialitem-prices",
+  adminauthenticateToken,
+  async (req, res) => {
+    try {
+      const { customerId, specialitemId } = req.query;
 
-    if (!customerId || !specialitemId) {
-      return res.status(400).json({ error: "Customer ID and Item ID are required" });
+      if (!customerId || !specialitemId) {
+        return res
+          .status(400)
+          .json({ error: "Customer ID and Item ID are required" });
+      }
+
+      const [result] = await pool.query(
+        "DELETE FROM customer_specialitem_prices WHERE customer_id = ? AND specialitem_id = ?",
+        [customerId, specialitemId]
+      );
+
+      if (result.affectedRows === 0) {
+        return res
+          .status(404)
+          .json({ error: "Customer price mapping not found" });
+      }
+
+      res.json({
+        message: "Customer price mapping deleted successfully",
+        specialCustUpdated: false, // Explicitly state no flag update
+      });
+    } catch (err) {
+      console.error("Error deleting customer price:", err);
+      res.status(500).json({ error: "Failed to delete customer price" });
     }
-
-    const [result] = await pool.query(
-      "DELETE FROM customer_specialitem_prices WHERE customer_id = ? AND specialitem_id = ?",
-      [customerId, specialitemId]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Customer price mapping not found" });
-    }
-
-    res.json({ 
-      message: "Customer price mapping deleted successfully",
-      specialCustUpdated: false // Explicitly state no flag update
-    });
-  } catch (err) {
-    console.error("Error deleting customer price:", err);
-    res.status(500).json({ error: "Failed to delete customer price" });
   }
-});
+);
 
 // Delete special item and all its mappings - Check and update special_cust flags if needed
-app.delete("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
-
+app.delete(
+  "/api/admin/specialitems/:id",
+  adminauthenticateToken,
+  async (req, res) => {
     try {
-      // First get all customer IDs that have mappings for this item
-      const [customerMappings] = await connection.query(
-        "SELECT DISTINCT customer_id FROM customer_specialitem_prices WHERE specialitem_id = ?",
-        [id]
-      );
+      const { id } = req.params;
 
-      // Then delete customer price mappings
-      const [mappingResult] = await connection.query(
-        "DELETE FROM customer_specialitem_prices WHERE specialitem_id = ?",
-        [id]
-      );
+      const connection = await pool.getConnection();
+      await connection.beginTransaction();
 
-      // Then delete the item
-      const [itemResult] = await connection.query(
-        "DELETE FROM specialitems WHERE id = ?",
-        [id]
-      );
-
-      if (itemResult.affectedRows === 0) {
-        await connection.rollback();
-        return res.status(404).json({ error: "Item not found" });
-      }
-
-      // For each customer that had mappings for this item, check if they have any remaining mappings
-      // If no remaining mappings, set special_cust = 0
-      let specialCustUpdates = 0;
-      for (const mapping of customerMappings) {
-        const [remainingMappings] = await connection.query(
-          "SELECT COUNT(*) as count FROM customer_specialitem_prices WHERE customer_id = ?",
-          [mapping.customer_id]
+      try {
+        // First get all customer IDs that have mappings for this item
+        const [customerMappings] = await connection.query(
+          "SELECT DISTINCT customer_id FROM customer_specialitem_prices WHERE specialitem_id = ?",
+          [id]
         );
-        
-        if (remainingMappings[0].count === 0) {
-          // No more mappings for this customer, update special_cust to 0
-          await connection.query(
-            "UPDATE users SET special_cust = 0, updated_at = NOW() WHERE id = ?",
+
+        // Then delete customer price mappings
+        const [mappingResult] = await connection.query(
+          "DELETE FROM customer_specialitem_prices WHERE specialitem_id = ?",
+          [id]
+        );
+
+        // Then delete the item
+        const [itemResult] = await connection.query(
+          "DELETE FROM specialitems WHERE id = ?",
+          [id]
+        );
+
+        if (itemResult.affectedRows === 0) {
+          await connection.rollback();
+          return res.status(404).json({ error: "Item not found" });
+        }
+
+        // For each customer that had mappings for this item, check if they have any remaining mappings
+        // If no remaining mappings, set special_cust = 0
+        let specialCustUpdates = 0;
+        for (const mapping of customerMappings) {
+          const [remainingMappings] = await connection.query(
+            "SELECT COUNT(*) as count FROM customer_specialitem_prices WHERE customer_id = ?",
             [mapping.customer_id]
           );
-          specialCustUpdates++;
+
+          if (remainingMappings[0].count === 0) {
+            // No more mappings for this customer, update special_cust to 0
+            await connection.query(
+              "UPDATE users SET special_cust = 0, updated_at = NOW() WHERE id = ?",
+              [mapping.customer_id]
+            );
+            specialCustUpdates++;
+          }
         }
+
+        await connection.commit();
+        res.json({
+          message: "Item and all customer mappings deleted successfully",
+          mappingsDeleted: mappingResult.affectedRows,
+          specialCustUpdates: specialCustUpdates,
+        });
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
       }
-
-      await connection.commit();
-      res.json({ 
-        message: "Item and all customer mappings deleted successfully",
-        mappingsDeleted: mappingResult.affectedRows,
-        specialCustUpdates: specialCustUpdates
-      });
-
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
+    } catch (err) {
+      console.error("Error deleting item:", err);
+      res.status(500).json({ error: "Failed to delete item" });
     }
-  } catch (err) {
-    console.error("Error deleting item:", err);
-    res.status(500).json({ error: "Failed to delete item" });
   }
-});
-
-
-
-
-
+);
 
 app.post(
   "/api/admin/products",
@@ -11856,7 +12172,9 @@ app.get("/api/invoice/profile", adminauthenticateToken, async (req, res) => {
     const { customer_id } = req.query;
 
     if (!customer_id) {
-      return res.status(400).json({ error: "customer_id query param is required" });
+      return res
+        .status(400)
+        .json({ error: "customer_id query param is required" });
     }
 
     const [rows] = await pool.query(
@@ -11899,7 +12217,6 @@ app.get("/api/invoice/profile", adminauthenticateToken, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
 
 // POST /api/admin/team
 // app.post(
@@ -12092,8 +12409,6 @@ app.post(
     }
   }
 );
-
-
 
 // GET /api/admin/team
 app.get("/api/admin/team", adminauthenticateToken, async (req, res) => {
