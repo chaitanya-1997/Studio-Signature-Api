@@ -17,6 +17,7 @@ const port = process.env.PORT || 8080;
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = "1h";
+//stripe secret key
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 // app.use(cors({ origin: "*" })); // Allow all origins for testing
