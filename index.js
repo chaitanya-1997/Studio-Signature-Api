@@ -319,229 +319,6 @@ app.post("/api/send-email", async (req, res) => {
 
 //Signup API
 
-// app.post("/api/signup", async (req, res) => {
-//   const {
-//     userType,
-//     fullName,
-//     email,
-//     password,
-//     confirmPassword,
-//     businessName,
-//     taxId,
-//     phone,
-//     street,
-//     city,
-//     state,
-//     postalCode,
-//     agreeTerms,
-//   } = req.body;
-
-//   // Validate userType
-//   if (!userType || !["customer", "vendor"].includes(userType)) {
-//     return res.status(400).json({ error: "Invalid user type" });
-//   }
-
-//   // Required fields
-//   if (!fullName || !email || !password || !confirmPassword) {
-//     return res.status(400).json({ error: "Missing required fields" });
-//   }
-
-//   if (password !== confirmPassword) {
-//     return res.status(400).json({ error: "Passwords do not match" });
-//   }
-
-//   if (!agreeTerms) {
-//     return res.status(400).json({ error: "You must agree to the terms" });
-//   }
-
-//   if (userType === "vendor" && (!businessName || !taxId)) {
-//     return res.status(400).json({
-//       error: "Company name and tax ID are required for vendors",
-//     });
-//   }
-
-//   // Basic check for address fields presence
-//   if (!street || !city || !state || !postalCode) {
-//     return res.status(400).json({
-//       error:
-//         "Please provide complete address: street, city, state, and postal code",
-//     });
-//   }
-
-//   // Email validation (simple)
-//   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || /\s/.test(email)) {
-//     return res.status(400).json({ error: "Invalid email format" });
-//   }
-
-//   // Password validation (same rules as frontend)
-//   if (
-//     !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/.test(
-//       password
-//     ) ||
-//     /\s/.test(password)
-//   ) {
-//     return res.status(400).json({
-//       error:
-//         "Password must be at least 8 characters long and include uppercase, lowercase, number, special character, and no spaces",
-//     });
-//   }
-
-//   // Phone validation: allowing + and other characters, but exactly 10 digits
-//   const digitsOnly = phone.replace(/[^\d]/g, "");
-//   if (!/^\d{10}$/.test(digitsOnly)) {
-//     return res.status(400).json({
-//       error: "Phone number must contain exactly 10 digits",
-//     });
-//   }
-
-//   try {
-//     // Check for duplicate email in DB
-//     const [existingUsers] = await pool.query(
-//       "SELECT id FROM users WHERE email = ?",
-//       [email]
-//     );
-//     if (existingUsers.length > 0) {
-//       return res.status(400).json({ error: "Email already exists" });
-//     }
-
-//     // Hash password
-//     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-
-//     // Insert into DB - using company_name for the single business/company field
-//     const [result] = await pool.query(
-//       `INSERT INTO users
-//       (user_type, full_name, email, password, company_name, tax_id, phone, street, city, state, postal_code, is_active, created_at)
-//       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-//       [
-//         userType,
-//         fullName,
-//         email,
-//         hashedPassword,
-//         businessName || null, // Store in company_name column
-//         taxId || null,
-//         phone || null,
-//         street || null,
-//         city || null,
-//         state || null,
-//         postalCode || null,
-//         0, // pending approval
-//       ]
-//     );
-
-//     const userId = result.insertId;
-
-//     // Prepare user confirmation email
-//     const userMailOptions = {
-//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
-//       to: email,
-//       subject: "Thank You for Signing Up with Studio Signature Cabinets!",
-//       html: `
-//         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//           <h2>Hello, ${fullName}!</h2>
-//           <p>Thank you for signing up as a <strong>${userType}</strong> with Studio Signature Cabinets. Your account is currently <strong>pending approval</strong> by our admin team.</p>
-//           <p><strong>What happens next?</strong></p>
-//           <ul>
-//             <li>Our team will review your signup details within 1-2 business days.</li>
-//             <li>Once approved, you will receive a confirmation email with instructions to log in and access your account.</li>
-//             <li>If you have any urgent questions, please contact our support team at <a href="mailto:info@studiosignaturecabinets.com">info@studiosignaturecabinets.com</a>.</li>
-//           </ul>
-//           <h3>Your Signup Details:</h3>
-//           <ul style="list-style: none; padding: 0;">
-//             <li><strong>Full Name:</strong> ${fullName}</li>
-//             <li><strong>Email:</strong> ${email}</li>
-//             <li><strong>Phone:</strong> ${phone || "N/A"}</li>
-//             <li><strong>Street:</strong> ${street || "N/A"}</li>
-//             <li><strong>City:</strong> ${city || "N/A"}</li>
-//             <li><strong>State:</strong> ${state || "N/A"}</li>
-//             <li><strong>Postal Code:</strong> ${postalCode || "N/A"}</li>
-//             ${
-//               businessName
-//                 ? `<li><strong>Company Name:</strong> ${businessName}</li>`
-//                 : ""
-//             }
-//             ${
-//               userType === "vendor" && taxId
-//                 ? `<li><strong>Tax ID:</strong> ${taxId}</li>`
-//                 : ""
-//             }
-//           </ul>
-//           <p>We're excited to have you join our community! You'll hear from us soon.</p>
-//           <p>Best regards,<br>Team Studio Signature Cabinets</p>
-//         </div>
-//       `,
-//     };
-
-//     // Admin notification email
-//     const adminMailOptions = {
-//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
-//       to: "sjingle@studiosignaturecabinets.com",
-//       subject: `New ${
-//         userType.charAt(0).toUpperCase() + userType.slice(1)
-//       } Signup Request - ${fullName}`,
-//       html: `
-//         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//           <h2>New ${
-//             userType.charAt(0).toUpperCase() + userType.slice(1)
-//           } Signup Request</h2>
-//           <p>A new ${userType} has submitted a signup request on ${new Date().toLocaleDateString()}. Please review and approve or reject this user in the admin panel.</p>
-//           <h3>User Details:</h3>
-//           <ul style="list-style: none; padding: 0;">
-//             <li><strong>User ID:</strong> ${userId}</li>
-//             <li><strong>User Type:</strong> ${
-//               userType.charAt(0).toUpperCase() + userType.slice(1)
-//             }</li>
-//             <li><strong>Full Name:</strong> ${fullName}</li>
-//             <li><strong>Email:</strong> ${email}</li>
-//             <li><strong>Phone:</strong> ${phone || "N/A"}</li>
-//             <li><strong>Street:</strong> ${street || "N/A"}</li>
-//             <li><strong>City:</strong> ${city || "N/A"}</li>
-//             <li><strong>State:</strong> ${state || "N/A"}</li>
-//             <li><strong>Postal Code:</strong> ${postalCode || "N/A"}</li>
-//             ${
-//               businessName
-//                 ? `<li><strong>Company Name:</strong> ${businessName}</li>`
-//                 : ""
-//             }
-//             ${
-//               userType === "vendor" && taxId
-//                 ? `<li><strong>Tax ID:</strong> ${taxId}</li>`
-//                 : ""
-//             }
-//             <li><strong>Signup Date:</strong> ${new Date().toLocaleDateString()}</li>
-//             <li><strong>Status:</strong> Pending Approval</li>
-//           </ul>
-//           <p><strong>Action Required:</strong> Please review this user and update their status in the admin panel.</p>
-//           <p style="text-align: center;">
-//             <a href="https://studiosignaturecabinets.com/admin/login" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Review User</a>
-//           </p>
-//           <p>For further details, check the admin panel or contact the user directly at ${email}.</p>
-//         </div>
-//       `,
-//     };
-
-//     // Send emails
-//     try {
-//       await Promise.all([
-//         transporter.sendMail(userMailOptions),
-//         transporter.sendMail(adminMailOptions),
-//       ]);
-//     } catch (emailErr) {
-//       console.error("Email sending failed:", emailErr);
-//       return res.status(201).json({
-//         message:
-//           "Account created successfully, but email sending failed. Please contact support.",
-//       });
-//     }
-
-//     res.status(201).json({
-//       message:
-//         "Signup request submitted successfully. You will receive a confirmation email once your account is approved.",
-//     });
-//   } catch (err) {
-//     console.error("Server error:", err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// });
 
 app.post("/api/signup", async (req, res) => {
   const {
@@ -887,164 +664,6 @@ app.get("/api/verify-token", authenticateToken, async (req, res) => {
   res.json({ user: { id: req.user.id, email: req.user.email } });
 });
 
-// app.get("/api/profile", authenticateToken, async (req, res) => {
-//   try {
-//     const userId = req.user.id;
-//     const [users] = await pool.query(
-//       `SELECT u.id, u.user_type, u.full_name, u.company_name, u.email, u.phone,
-//               u.street, u.city, u.state, u.postal_code, u.account_status, u.last_login,
-//               u.admin_discount, u.created_at, u.notes, u.profile_photo,u.admin_discount,
-//               u.team_member_id, t.name AS team_member_name, t.position AS team_member_position,
-//               t.email AS team_member_email, t.phone AS team_member_phone, t.photo_path AS team_member_photo
-//        FROM users u
-//        LEFT JOIN team_members t ON u.team_member_id = t.id
-//        WHERE u.id = ?`,
-//       [userId]
-//     );
-
-//     if (users.length === 0) {
-//       return res.status(404).json({ error: "User not found" });
-//     }
-
-//     res.json(users[0]);
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// });
-
-// app.get("/api/profile", authenticateToken, async (req, res) => {
-//   try {
-//     const userId = req.user.id;
-//     console.log("Fetching profile for user ID:", userId);
-//     const [users] = await pool.query(
-//       `SELECT u.id, u.user_type, u.full_name, u.company_name, u.email, u.phone,
-//               u.street, u.city, u.state, u.postal_code, u.account_status, u.last_login,
-//               u.admin_discount, u.created_at, u.notes, u.profile_photo, u.team_member_id,
-//               t.name AS team_member_name, t.position AS team_member_position,
-//               t.email AS team_member_email, t.phone AS team_member_phone,
-//               t.photo_path AS team_member_photo
-//        FROM users u
-//        LEFT JOIN team_members t ON u.team_member_id = t.id
-//        WHERE u.id = ?`,
-//       [userId]
-//     );
-
-//     if (users.length === 0) {
-//       return res.status(404).json({ error: "User not found" });
-//     }
-
-//     const user = users[0];
-//     res.json({
-//       id: user.id,
-//       userType: user.user_type,
-//       fullName: user.full_name,
-//       companyName: user.company_name || "",
-//       email: user.email,
-//       phone: user.phone || "",
-//       street: user.street || "",
-//       city: user.city || "",
-//       state: user.state || "",
-//       postalCode: user.postal_code || "",
-//       accountStatus: user.account_status,
-//       lastLogin: user.last_login,
-//       adminDiscount: user.admin_discount || null,
-//       createdAt: user.created_at,
-//       notes: user.notes || "",
-//       profilePhoto: user.profile_photo
-//         ? `${req.protocol}://${req.get("host")}${
-//             user.profile_photo
-//           }?t=${Date.now()}`
-//         : null,
-//       teamMember: user.team_member_id
-//         ? {
-//             id: user.team_member_id,
-//             name: user.team_member_name || "",
-//             position: user.team_member_position || "",
-//             email: user.team_member_email || "",
-//             phone: user.team_member_phone || "",
-//             photo: user.team_member_photo
-//               ? `${req.protocol}://${req.get("host")}${
-//                   user.team_member_photo
-//                 }?t=${Date.now()}`
-//               : null,
-//           }
-//         : null,
-//     });
-//   } catch (err) {
-//     console.error("Server error:", err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// });
-
-// PUT /api/profile
-
-// app.get("/api/profile", authenticateToken, async (req, res) => {
-//   try {
-//     const userId = req.user.id;
-//     console.log("Fetching profile for user ID:", userId);
-
-//     const [users] = await pool.query(
-//       `SELECT u.id, u.user_type, u.full_name, u.company_name, u.email, u.phone,
-//               u.street, u.city, u.state, u.postal_code, u.account_status, u.last_login,
-//               u.admin_discount, u.created_at, u.notes, u.profile_photo, u.team_member_id,
-//               u.special_cust,
-//               t.name AS team_member_name, t.position AS team_member_position,
-//               t.email AS team_member_email, t.phone AS team_member_phone,
-//               t.photo_path AS team_member_photo
-//        FROM users u
-//        LEFT JOIN team_members t ON u.team_member_id = t.id
-//        WHERE u.id = ?`,
-//       [userId]
-//     );
-
-//     if (users.length === 0) {
-//       return res.status(404).json({ error: "User not found" });
-//     }
-
-//     const user = users[0];
-//     res.json({
-//       id: user.id,
-//       userType: user.user_type,
-//       fullName: user.full_name,
-//       companyName: user.company_name || "",
-//       email: user.email,
-//       phone: user.phone || "",
-//       street: user.street || "",
-//       city: user.city || "",
-//       state: user.state || "",
-//       postalCode: user.postal_code || "",
-//       accountStatus: user.account_status,
-//       lastLogin: user.last_login,
-//       adminDiscount: user.admin_discount || null,
-//       createdAt: user.created_at,
-//       notes: user.notes || "",
-//       specialCust: user.special_cust,   // ✅ added here
-//       profilePhoto: user.profile_photo
-//         ? `${req.protocol}://${req.get("host")}${
-//             user.profile_photo
-//           }?t=${Date.now()}`
-//         : null,
-//       teamMember: user.team_member_id
-//         ? {
-//             id: user.team_member_id,
-//             name: user.team_member_name || "",
-//             position: user.team_member_position || "",
-//             email: user.team_member_email || "",
-//             phone: user.team_member_phone || "",
-//             photo: user.team_member_photo
-//               ? `${req.protocol}://${req.get("host")}${
-//                   user.team_member_photo
-//                 }?t=${Date.now()}`
-//               : null,
-//           }
-//         : null,
-//     });
-//   } catch (err) {
-//     console.error("Server error:", err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// });
 
 app.get("/api/profile", authenticateToken, async (req, res) => {
   try {
@@ -1371,978 +990,9 @@ app.get("/api/orders/next-id", async (req, res) => {
   }
 });
 
-// app.post("/api/orders", authenticateToken, async (req, res) => {
-//   const {
-//     doorStyle,
-//     finishType,
-//     stainOption,
-//     paintOption,
-//     account,
-//     billTo,
-//     jobsiteAddress,
-//     items,
-//     designServicesPrice,
-//     assemblyFlag,
-//     subtotal,
-//     tax,
-//     shipping,
-//     total,
-//     discount,
-//   } = req.body;
 
-//   let connection;
 
-//   try {
-//     // Log the received payload
-//     console.log('Received payload:', JSON.stringify(req.body, null, 2));
 
-//     // Validations
-//     if (!items || !Array.isArray(items) || items.length === 0) {
-//       console.log('Validation failed: Items are missing or not an array');
-//       return res
-//         .status(400)
-//         .json({ error: "Items are required and must be a non-empty array" });
-//     }
-//     if (!subtotal || !tax || !total) {
-//       console.log('Validation failed: Subtotal, tax, or total missing');
-//       return res
-//         .status(400)
-//         .json({ error: "Subtotal, tax, and total are required" });
-//     }
-//     if (!doorStyle || !finishType || !account || !billTo ) {
-//       console.log('Validation failed: Required fields missing', { doorStyle, finishType, account, billTo, jobsiteAddress });
-//       return res.status(400).json({
-//         error: "Door style, finish type, account, bill-to are required",
-//       });
-//     }
-//     if (finishType === "Stained" && !stainOption) {
-//       console.log('Validation failed: Stain option missing for Stained finish');
-//       return res
-//         .status(400)
-//         .json({ error: "Stain option is required for stained finish" });
-//     }
-//     if (finishType === "Painted" && !paintOption) {
-//       console.log('Validation failed: Paint option missing for Painted finish');
-//       return res
-//         .status(400)
-//         .json({ error: "Paint option is required for painted finish" });
-//     }
-//     if (designServicesPrice < 0) {
-//       console.log('Validation failed: Negative design services price');
-//       return res
-//         .status(400)
-//         .json({ error: "Design services price cannot be negative" });
-//     }
-//     if (!["Included", "Not Included"].includes(assemblyFlag)) {
-//       console.log('Validation failed: Invalid assembly flag', assemblyFlag);
-//       return res
-//         .status(400)
-//         .json({ error: "Assembly flag must be 'Included' or 'Not Included'" });
-//     }
-
-//     const userId = req.user.id;
-
-//     // Get user info
-//     const [userResult] = await pool.query(
-//       "SELECT full_name, email, phone, admin_discount FROM users WHERE id = ?",
-//       [userId]
-//     );
-//     if (userResult.length === 0) {
-//       console.log('User not found for ID:', userId);
-//       return res.status(404).json({ error: "User not found" });
-//     }
-
-//     const userFullName = userResult[0].full_name;
-//     const userEmail = userResult[0].email;
-//     const userPhone = userResult[0].phone || "N/A";
-//     const adminDiscount = parseFloat(userResult[0].admin_discount) || 0;
-
-//     // Calculate expected subtotal
-//     const itemsSubtotal = items.reduce(
-//       (sum, item) => sum + parseFloat(item.totalAmount || 0),
-//       0
-//     );
-//     const expectedSubtotal = parseFloat(
-//       (itemsSubtotal + designServicesPrice).toFixed(2)
-//     );
-//     if (parseFloat(subtotal.toFixed(2)) !== expectedSubtotal) {
-//       console.log('Subtotal mismatch', { expected: expectedSubtotal, received: subtotal });
-//       return res.status(400).json({
-//         error: `Invalid subtotal. Expected: ${expectedSubtotal}, Received: ${subtotal}`,
-//       });
-//     }
-
-//     // Validate discount
-//     const expectedDiscount = parseFloat((subtotal * adminDiscount).toFixed(2));
-//     if (
-//       discount === undefined ||
-//       parseFloat(discount.toFixed(2)) !== expectedDiscount
-//     ) {
-//       console.log('Discount mismatch', { expected: expectedDiscount, received: discount });
-//       return res.status(400).json({
-//         error: `Invalid discount amount. Expected: ${expectedDiscount}, Received: ${discount}`,
-//       });
-//     }
-
-//     // Validate total
-//     const taxcalc = parseFloat((subtotal - expectedDiscount).toFixed(2));
-//     const expectedTax = parseFloat((taxcalc * 0.065).toFixed(2));
-//     const expectedTotal = parseFloat(
-//       (subtotal - expectedDiscount + expectedTax).toFixed(2)
-//     );
-//     if (parseFloat(total.toFixed(2)) !== expectedTotal) {
-//       console.log('Total mismatch', { expected: expectedTotal, received: total });
-//       return res.status(400).json({
-//         error: `Invalid total amount. Expected: ${expectedTotal}, Received: ${total}`,
-//       });
-//     }
-
-//     // Start transaction
-//     connection = await pool.getConnection();
-//     await connection.beginTransaction();
-
-//     // Validate inventory for each item
-//     for (const item of items) {
-//       if (!item.sku || !item.name || !item.quantity || item.quantity < 1) {
-//         console.log('Invalid item data', item);
-//         throw new Error(
-//           "Invalid item data: SKU, name, and valid quantity are required"
-//         );
-//       }
-
-//       // Check available quantity in items table
-//       const [itemResult] = await connection.query(
-//         "SELECT qty, item_type, color FROM items WHERE sku = ?",
-//         [item.sku]
-//       );
-
-//       if (itemResult.length === 0) {
-//         console.log('Item not found in inventory', item.sku);
-//         throw new Error(`Item with SKU ${item.sku} not found in inventory`);
-//       }
-
-//       const availableQty = parseFloat(itemResult[0].qty) || 0;
-//       if (availableQty < item.quantity) {
-//         console.log('Insufficient stock', { sku: item.sku, available: availableQty, requested: item.quantity });
-//         throw new Error(
-//           `Insufficient stock for SKU ${item.sku}. Available: ${availableQty}, Requested: ${item.quantity}`
-//         );
-//       }
-
-//       // Validate carcass items
-//       if (item.sku.endsWith("-CAR")) {
-//         if (itemResult[0].item_type !== "CARCASS" || itemResult[0].color !== "Carcass") {
-//           console.log('Invalid carcass item', item.sku);
-//           throw new Error(`Item with SKU ${item.sku} is not a valid carcass item`);
-//         }
-//       }
-//     }
-
-//     // Insert order
-//     const [orderResult] = await connection.query(
-//       `INSERT INTO orders (
-//         user_id, door_style, finish_type, stain_option, paint_option,
-//         account, bill_to, jobsite_address, design_services_price, assembly_flag,
-//         subtotal, tax, shipping, discount, total, status, created_at, po_number
-//       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW(), NULL)`,
-//       [
-//         userId,
-//         doorStyle,
-//         finishType,
-//         stainOption || null,
-//         paintOption || null,
-//         account,
-//         billTo,
-//         jobsiteAddress,
-//         designServicesPrice || 0,
-//         assemblyFlag,
-//         subtotal,
-//         tax,
-//         shipping !== undefined ? shipping : null,
-//         discount || 0,
-//         total,
-//       ]
-//     );
-
-//     const autoId = orderResult.insertId;
-//     console.log('Inserted order with autoId:', autoId);
-
-//     // Generate order_id
-//     const orderId = `S-ORD${String(autoId + 101001).padStart(6, "0")}`;
-//     console.log('Generated orderId:', orderId);
-
-//     // Generate po_number
-//     const poNumber = await generatePONumber(pool);
-//     console.log('Generated poNumber:', poNumber);
-
-//     // Update order_id and po_number
-//     await connection.query(`UPDATE orders SET order_id = ?, po_number = ? WHERE id = ?`, [
-//       orderId,
-//       poNumber,
-//       autoId,
-//     ]);
-
-//     // Insert order items and update inventory
-//     for (const item of items) {
-//       console.log('Inserting order item:', item);
-//       await connection.query(
-//         `INSERT INTO order_items (order_id, sku, name, quantity, price, total_amount, door_style, finish)
-//          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-//         [
-//           autoId,
-//           item.sku,
-//           item.name,
-//           item.quantity,
-//           item.price || null,
-//           item.totalAmount || null,
-//           doorStyle,
-//           item.sku.endsWith("-CAR") ? "CARCASS" : finishType,
-//         ]
-//       );
-
-//       // Update qty in items table
-//       await connection.query(`UPDATE items SET qty = qty - ? WHERE sku = ?`, [
-//         item.quantity,
-//         item.sku,
-//       ]);
-//     }
-
-//     // Commit transaction
-//     await connection.commit();
-//     console.log('Transaction committed for orderId:', orderId);
-
-//     // Filter items for user email (exclude carcass items)
-//     const userItems = items.filter(item => !item.sku.endsWith("-CAR"));
-
-//     // Email template for user (excludes carcass items)
-//     const userOrderDetailsHtml = `
-//       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//         <h3>Order Details</h3>
-//         <ul style="list-style: none; padding: 0;">
-//           <li><strong>Door Style:</strong> ${doorStyle}</li>
-//           <li><strong>Finish Type:</strong> ${finishType}</li>
-//           ${
-//             stainOption
-//               ? `<li><strong>Stain Option:</strong> ${stainOption}</li>`
-//               : ""
-//           }
-//           ${
-//             paintOption
-//               ? `<li><strong>Paint Option:</strong> ${paintOption}</li>`
-//               : ""
-//           }
-//           <li><strong>Ship To:</strong> ${account}</li>
-//           <li><strong>Bill To:</strong> ${billTo}</li>
-//           <li><strong>Jobsite Address:</strong> ${jobsiteAddress}</li>
-//           ${
-//             designServicesPrice > 0
-//               ? `<li><strong>Design Services:</strong> $${parseFloat(
-//                   designServicesPrice
-//                 ).toFixed(2)}</li>`
-//               : ""
-//           }
-//           ${
-//             assemblyFlag === "Included"
-//               ? `<li><strong>Assembly Services:</strong> Included</li>`
-//               : ""
-//           }
-//         </ul>
-//         <h3>Items</h3>
-//         <table style="border-collapse: collapse; width: 100%;">
-//           <thead>
-//             <tr style="background-color: #f2f2f2;">
-//               <th style="border: 1px solid #ddd; padding: 8px;">SKU</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Name</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Quantity</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Price ($)</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Total ($)</th>
-//             </tr>
-//           </thead>
-//           <tbody>
-//             ${userItems
-//               .map(
-//                 (item) => `
-//               <tr>
-//                 <td style="border: 1px solid #ddd; padding: 8px;">${item.sku}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.quantity}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(item.price || 0).toFixed(2)}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(item.totalAmount || 0).toFixed(2)}</td>
-//               </tr>
-//             `
-//               )
-//               .join("")}
-//           </tbody>
-//         </table>
-//         <h3>Price Summary</h3>
-//         <ul style="list-style: none; padding: 0;">
-//           <li><strong>Subtotal:</strong> $${parseFloat(subtotal).toFixed(2)}</li>
-//           ${
-//             discount > 0
-//               ? `<li><strong>Discount:</strong> $${parseFloat(discount).toFixed(2)}</li>`
-//               : ""
-//           }
-//           <li><strong>Tax (6.5%):</strong> $${parseFloat(tax).toFixed(2)}</li>
-//           <li><strong>Shipping:</strong> ${shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"}</li>
-//           <li><strong>Total:</strong> $${parseFloat(total).toFixed(2)}</li>
-//         </ul>
-//       </div>
-//     `;
-
-//     // Email template for admin (includes all items)
-//     const adminOrderDetailsHtml = `
-//       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//         <h3>Order Details</h3>
-//         <ul style="list-style: none; padding: 0;">
-//           <li><strong>Door Style:</strong> ${doorStyle}</li>
-//           <li><strong>Finish Type:</strong> ${finishType}</li>
-//           ${
-//             stainOption
-//               ? `<li><strong>Stain Option:</strong> ${stainOption}</li>`
-//               : ""
-//           }
-//           ${
-//             paintOption
-//               ? `<li><strong>Paint Option:</strong> ${paintOption}</li>`
-//               : ""
-//           }
-//           <li><strong>Ship To:</strong> ${account}</li>
-//           <li><strong>Bill To:</strong> ${billTo}</li>
-//           <li><strong>Jobsite Address:</strong> ${jobsiteAddress}</li>
-//           ${
-//             designServicesPrice > 0
-//               ? `<li><strong>Design Services:</strong> $${parseFloat(
-//                   designServicesPrice
-//                 ).toFixed(2)}</li>`
-//               : ""
-//           }
-//           ${
-//             assemblyFlag === "Included"
-//               ? `<li><strong>Assembly Services:</strong> Included</li>`
-//               : ""
-//           }
-//         </ul>
-//         <h3>Items</h3>
-//         <table style="border-collapse: collapse; width: 100%;">
-//           <thead>
-//             <tr style="background-color: #f2f2f2;">
-//               <th style="border: 1px solid #ddd; padding: 8px;">SKU</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Name</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Quantity</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Price ($)</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Total ($)</th>
-//             </tr>
-//           </thead>
-//           <tbody>
-//             ${items
-//               .map(
-//                 (item) => `
-//               <tr>
-//                 <td style="border: 1px solid #ddd; padding: 8px;">${item.sku}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.quantity}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(item.price || 0).toFixed(2)}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(item.totalAmount || 0).toFixed(2)}</td>
-//               </tr>
-//             `
-//               )
-//               .join("")}
-//           </tbody>
-//         </table>
-//         <h3>Price Summary</h3>
-//         <ul style="list-style: none; padding: 0;">
-//           <li><strong>Subtotal:</strong> $${parseFloat(subtotal).toFixed(2)}</li>
-//           ${
-//             discount > 0
-//               ? `<li><strong>Discount:</strong> $${parseFloat(discount).toFixed(2)}</li>`
-//               : ""
-//           }
-//           <li><strong>Tax (6.5%):</strong> $${parseFloat(tax).toFixed(2)}</li>
-//           <li><strong>Shipping:</strong> ${shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"}</li>
-//           <li><strong>Total:</strong> $${parseFloat(total).toFixed(2)}</li>
-//         </ul>
-//       </div>
-//     `;
-
-//     const userMailOptions = {
-//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
-//       to: userEmail,
-//       subject: `Order Submitted - ${orderId} (Pending Approval)`,
-//       html: `
-//         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//           <h2>Thank You for Your Order, ${userFullName}!</h2>
-//           <p>Your order <strong>${orderId}</strong> (PO: <strong>${poNumber}</strong>) has been submitted on ${new Date().toLocaleDateString()} and is currently <strong>pending admin approval</strong>.</p>
-//           <p><strong>Important:</strong></p>
-//           <ul>
-//             <li>This order cannot be edited or canceled after 24 hours.</li>
-//             <li>Please note: Your order will be considered accepted after 24 hours of placement.</li>
-//             <li>Shipping charges will be applied by the admin based on your location's shipping zone. You'll receive an updated order amount via email once finalized.</li>
-//           </ul>
-//           ${userOrderDetailsHtml}
-//         </div>
-//       `,
-//     };
-
-//     const adminMailOptions = {
-//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
-//       to: 'sjingle@studiosignaturecabinets.com',
-//       subject: `New Order Pending Approval - ${orderId} (PO: ${poNumber})`,
-//       html: `
-//         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//           <h2>New Order Pending Approval: ${orderId} (PO: ${poNumber})</h2>
-//           <p>A new order has been submitted by <strong>${userFullName}</strong> (${userEmail}) on ${new Date().toLocaleDateString()}.</p>
-//           <p><strong>Phone:</strong> ${userPhone}</p>
-//           ${adminOrderDetailsHtml}
-//         </div>
-//       `,
-//     };
-
-//     try {
-//       await Promise.all([
-//         transporter.sendMail(userMailOptions),
-//         transporter.sendMail(adminMailOptions),
-//       ]);
-//       console.log('Emails sent successfully for orderId:', orderId);
-//     } catch (emailErr) {
-//       console.error('Email sending failed:', emailErr);
-//     }
-
-//     res.status(201).json({
-//       message: "Order submitted successfully and is pending admin approval",
-//       order_id: orderId,
-//       po_number: poNumber,
-//       jobsite_address: jobsiteAddress,
-//     });
-//   } catch (err) {
-//     if (connection) {
-//       await connection.rollback();
-//       connection.release();
-//     }
-//     console.error('Transaction failed:', err);
-//     res.status(400).json({ error: err.message || "Error placing order" });
-//   } finally {
-//     if (connection) {
-//       connection.release();
-//     }
-//   }
-// });
-
-// app.post("/api/orders", authenticateToken, async (req, res) => {
-//   const {
-//     doorStyle,
-//     finishType,
-//     stainOption,
-//     paintOption,
-//     account,
-//     billTo,
-//     jobsiteAddress,
-//     items,
-//     designServicesPrice,
-//     assemblyFlag,
-//     subtotal,
-//     tax,
-//     shipping,
-//     total,
-//     discount,
-//     poNumber, // ✅ NEW: take PO Number from body (optional)
-//   } = req.body;
-
-//   let connection;
-
-//   try {
-//     // Log the received payload
-//     console.log("Received payload:", JSON.stringify(req.body, null, 2));
-
-//     // Validations
-//     if (!items || !Array.isArray(items) || items.length === 0) {
-//       console.log("Validation failed: Items are missing or not an array");
-//       return res
-//         .status(400)
-//         .json({ error: "Items are required and must be a non-empty array" });
-//     }
-//     if (!subtotal || !tax || !total) {
-//       console.log("Validation failed: Subtotal, tax, or total missing");
-//       return res
-//         .status(400)
-//         .json({ error: "Subtotal, tax, and total are required" });
-//     }
-//     if (!doorStyle || !finishType || !account || !billTo) {
-//       console.log("Validation failed: Required fields missing", {
-//         doorStyle,
-//         finishType,
-//         account,
-//         billTo,
-//         jobsiteAddress,
-//       });
-//       return res.status(400).json({
-//         error: "Door style, finish type, account, bill-to are required",
-//       });
-//     }
-//     if (finishType === "Stained" && !stainOption) {
-//       console.log("Validation failed: Stain option missing for Stained finish");
-//       return res
-//         .status(400)
-//         .json({ error: "Stain option is required for stained finish" });
-//     }
-//     if (finishType === "Painted" && !paintOption) {
-//       console.log("Validation failed: Paint option missing for Painted finish");
-//       return res
-//         .status(400)
-//         .json({ error: "Paint option is required for painted finish" });
-//     }
-//     if (designServicesPrice < 0) {
-//       console.log("Validation failed: Negative design services price");
-//       return res
-//         .status(400)
-//         .json({ error: "Design services price cannot be negative" });
-//     }
-//     if (!["Included", "Not Included"].includes(assemblyFlag)) {
-//       console.log("Validation failed: Invalid assembly flag", assemblyFlag);
-//       return res.status(400).json({
-//         error: "Assembly flag must be 'Included' or 'Not Included'",
-//       });
-//     }
-
-//     const userId = req.user.id;
-
-//     // Get user info
-//     const [userResult] = await pool.query(
-//       "SELECT full_name, email, phone, admin_discount FROM users WHERE id = ?",
-//       [userId]
-//     );
-//     if (userResult.length === 0) {
-//       console.log("User not found for ID:", userId);
-//       return res.status(404).json({ error: "User not found" });
-//     }
-
-//     const userFullName = userResult[0].full_name;
-//     const userEmail = userResult[0].email;
-//     const userPhone = userResult[0].phone || "N/A";
-//     const adminDiscount = parseFloat(userResult[0].admin_discount) || 0;
-
-//     // Calculate expected subtotal
-//     const itemsSubtotal = items.reduce(
-//       (sum, item) => sum + parseFloat(item.totalAmount || 0),
-//       0
-//     );
-//     const expectedSubtotal = parseFloat(
-//       (itemsSubtotal + designServicesPrice).toFixed(2)
-//     );
-//     if (parseFloat(subtotal.toFixed(2)) !== expectedSubtotal) {
-//       console.log("Subtotal mismatch", {
-//         expected: expectedSubtotal,
-//         received: subtotal,
-//       });
-//       return res.status(400).json({
-//         error: `Invalid subtotal. Expected: ${expectedSubtotal}, Received: ${subtotal}`,
-//       });
-//     }
-
-//     // Validate discount
-//     const expectedDiscount = parseFloat(
-//       (subtotal * adminDiscount).toFixed(2)
-//     );
-//     if (
-//       discount === undefined ||
-//       parseFloat(discount.toFixed(2)) !== expectedDiscount
-//     ) {
-//       console.log("Discount mismatch", {
-//         expected: expectedDiscount,
-//         received: discount,
-//       });
-//       return res.status(400).json({
-//         error: `Invalid discount amount. Expected: ${expectedDiscount}, Received: ${discount}`,
-//       });
-//     }
-
-//     // Validate total
-//     const taxcalc = parseFloat((subtotal - expectedDiscount).toFixed(2));
-//     const expectedTax = parseFloat((taxcalc * 0.065).toFixed(2));
-//     const expectedTotal = parseFloat(
-//       (subtotal - expectedDiscount + expectedTax).toFixed(2)
-//     );
-//     if (parseFloat(total.toFixed(2)) !== expectedTotal) {
-//       console.log("Total mismatch", {
-//         expected: expectedTotal,
-//         received: total,
-//       });
-//       return res.status(400).json({
-//         error: `Invalid total amount. Expected: ${expectedTotal}, Received: ${total}`,
-//       });
-//     }
-
-//     // Start transaction
-//     connection = await pool.getConnection();
-//     await connection.beginTransaction();
-
-//     // Validate inventory for each item
-//     for (const item of items) {
-//       if (!item.sku || !item.name || !item.quantity || item.quantity < 1) {
-//         console.log("Invalid item data", item);
-//         throw new Error(
-//           "Invalid item data: SKU, name, and valid quantity are required"
-//         );
-//       }
-
-//       // Check available quantity in items table
-//       const [itemResult] = await connection.query(
-//         "SELECT qty, item_type, color FROM items WHERE sku = ?",
-//         [item.sku]
-//       );
-
-//       if (itemResult.length === 0) {
-//         console.log("Item not found in inventory", item.sku);
-//         throw new Error(`Item with SKU ${item.sku} not found in inventory`);
-//       }
-
-//       const availableQty = parseFloat(itemResult[0].qty) || 0;
-//       if (availableQty < item.quantity) {
-//         console.log("Insufficient stock", {
-//           sku: item.sku,
-//           available: availableQty,
-//           requested: item.quantity,
-//         });
-//         throw new Error(
-//           `Insufficient stock for SKU ${item.sku}. Available: ${availableQty}, Requested: ${item.quantity}`
-//         );
-//       }
-
-//       // Validate carcass items
-//       if (item.sku.endsWith("-CAR")) {
-//         if (
-//           itemResult[0].item_type !== "CARCASS" ||
-//           itemResult[0].color !== "Carcass"
-//         ) {
-//           console.log("Invalid carcass item", item.sku);
-//           throw new Error(
-//             `Item with SKU ${item.sku} is not a valid carcass item`
-//           );
-//         }
-//       }
-//     }
-
-//     // Insert order (po_number comes from user; optional)
-//     const [orderResult] = await connection.query(
-//       `INSERT INTO orders (
-//         user_id, door_style, finish_type, stain_option, paint_option,
-//         account, bill_to, jobsite_address, design_services_price, assembly_flag,
-//         subtotal, tax, shipping, discount, total, status, created_at, po_number
-//       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW(), ?)`,
-//       [
-//         userId,
-//         doorStyle,
-//         finishType,
-//         stainOption || null,
-//         paintOption || null,
-//         account,
-//         billTo,
-//         jobsiteAddress,
-//         designServicesPrice || 0,
-//         assemblyFlag,
-//         subtotal,
-//         tax,
-//         shipping !== undefined ? shipping : null,
-//         discount || 0,
-//         total,
-//         poNumber || null, // ✅ save user PO or null
-//       ]
-//     );
-
-//     const autoId = orderResult.insertId;
-//     console.log("Inserted order with autoId:", autoId);
-
-//     // Generate order_id
-//     const orderId = `S-ORD${String(autoId + 101001).padStart(6, "0")}`;
-//     console.log("Generated orderId:", orderId);
-
-//     // ✅ Only update order_id now; po_number already stored from user
-//     await connection.query(`UPDATE orders SET order_id = ? WHERE id = ?`, [
-//       orderId,
-//       autoId,
-//     ]);
-
-//     // Insert order items and update inventory
-//     for (const item of items) {
-//       console.log("Inserting order item:", item);
-//       await connection.query(
-//         `INSERT INTO order_items (order_id, sku, name, quantity, price, total_amount, door_style, finish)
-//          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-//         [
-//           autoId,
-//           item.sku,
-//           item.name,
-//           item.quantity,
-//           item.price || null,
-//           item.totalAmount || null,
-//           doorStyle,
-//           item.sku.endsWith("-CAR") ? "CARCASS" : finishType,
-//         ]
-//       );
-
-//       // Update qty in items table
-//       await connection.query(`UPDATE items SET qty = qty - ? WHERE sku = ?`, [
-//         item.quantity,
-//         item.sku,
-//       ]);
-//     }
-
-//     // Commit transaction
-//     await connection.commit();
-//     console.log("Transaction committed for orderId:", orderId);
-
-//     // Filter items for user email (exclude carcass items)
-//     const userItems = items.filter((item) => !item.sku.endsWith("-CAR"));
-
-//     // Email template for user (excludes carcass items)
-//     const userOrderDetailsHtml = `
-//       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//         <h3>Order Details</h3>
-//         <ul style="list-style: none; padding: 0;">
-//           <li><strong>Door Style:</strong> ${doorStyle}</li>
-//           <li><strong>Finish Type:</strong> ${finishType}</li>
-//           ${
-//             stainOption
-//               ? `<li><strong>Stain Option:</strong> ${stainOption}</li>`
-//               : ""
-//           }
-//           ${
-//             paintOption
-//               ? `<li><strong>Paint Option:</strong> ${paintOption}</li>`
-//               : ""
-//           }
-//           <li><strong>Ship To:</strong> ${account}</li>
-//           <li><strong>Bill To:</strong> ${billTo}</li>
-//           <li><strong>Jobsite Address:</strong> ${jobsiteAddress || "-"}</li>
-//           ${
-//             designServicesPrice > 0
-//               ? `<li><strong>Design Services:</strong> $${parseFloat(
-//                   designServicesPrice
-//                 ).toFixed(2)}</li>`
-//               : ""
-//           }
-//           ${
-//             assemblyFlag === "Included"
-//               ? `<li><strong>Assembly Services:</strong> Included</li>`
-//               : ""
-//           }
-//           ${
-//             poNumber
-//               ? `<li><strong>PO Number:</strong> ${poNumber}</li>`
-//               : ""
-//           }
-//         </ul>
-//         <h3>Items</h3>
-//         <table style="border-collapse: collapse; width: 100%;">
-//           <thead>
-//             <tr style="background-color: #f2f2f2;">
-//               <th style="border: 1px solid #ddd; padding: 8px;">SKU</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Name</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Quantity</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Price ($)</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Total ($)</th>
-//             </tr>
-//           </thead>
-//           <tbody>
-//             ${userItems
-//               .map(
-//                 (item) => `
-//               <tr>
-//                 <td style="border: 1px solid #ddd; padding: 8px;">${item.sku}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.quantity}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
-//                   item.price || 0
-//                 ).toFixed(2)}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
-//                   item.totalAmount || 0
-//                 ).toFixed(2)}</td>
-//               </tr>
-//             `
-//               )
-//               .join("")}
-//           </tbody>
-//         </table>
-//         <h3>Price Summary</h3>
-//         <ul style="list-style: none; padding: 0;">
-//           <li><strong>Subtotal:</strong> $${parseFloat(subtotal).toFixed(
-//             2
-//           )}</li>
-//           ${
-//             discount > 0
-//               ? `<li><strong>Discount:</strong> $${parseFloat(
-//                   discount
-//                 ).toFixed(2)}</li>`
-//               : ""
-//           }
-//           <li><strong>Tax (6.5%):</strong> $${parseFloat(tax).toFixed(2)}</li>
-//           <li><strong>Shipping:</strong> ${
-//             shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"
-//           }</li>
-//           <li><strong>Total:</strong> $${parseFloat(total).toFixed(2)}</li>
-//         </ul>
-//       </div>
-//     `;
-
-//     // Email template for admin (includes all items)
-//     const adminOrderDetailsHtml = `
-//       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//         <h3>Order Details</h3>
-//         <ul style="list-style: none; padding: 0;">
-//           <li><strong>Door Style:</strong> ${doorStyle}</li>
-//           <li><strong>Finish Type:</strong> ${finishType}</li>
-//           ${
-//             stainOption
-//               ? `<li><strong>Stain Option:</strong> ${stainOption}</li>`
-//               : ""
-//           }
-//           ${
-//             paintOption
-//               ? `<li><strong>Paint Option:</strong> ${paintOption}</li>`
-//               : ""
-//           }
-//           <li><strong>Ship To:</strong> ${account}</li>
-//           <li><strong>Bill To:</strong> ${billTo}</li>
-//           <li><strong>Jobsite Address:</strong> ${jobsiteAddress || "-"}</li>
-//           ${
-//             designServicesPrice > 0
-//               ? `<li><strong>Design Services:</strong> $${parseFloat(
-//                   designServicesPrice
-//                 ).toFixed(2)}</li>`
-//               : ""
-//           }
-//           ${
-//             assemblyFlag === "Included"
-//               ? `<li><strong>Assembly Services:</strong> Included</li>`
-//               : ""
-//           }
-//           ${
-//             poNumber
-//               ? `<li><strong>PO Number:</strong> ${poNumber}</li>`
-//               : ""
-//           }
-//         </ul>
-//         <h3>Items</h3>
-//         <table style="border-collapse: collapse; width: 100%;">
-//           <thead>
-//             <tr style="background-color: #f2f2f2;">
-//               <th style="border: 1px solid #ddd; padding: 8px;">SKU</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Name</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Quantity</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Price ($)</th>
-//               <th style="border: 1px solid #ddd; padding: 8px;">Total ($)</th>
-//             </tr>
-//           </thead>
-//           <tbody>
-//             ${items
-//               .map(
-//                 (item) => `
-//               <tr>
-//                 <td style="border: 1px solid #ddd; padding: 8px;">${item.sku}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.quantity}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
-//                   item.price || 0
-//                 ).toFixed(2)}</td>
-//                 <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${parseFloat(
-//                   item.totalAmount || 0
-//                 ).toFixed(2)}</td>
-//               </tr>
-//             `
-//               )
-//               .join("")}
-//           </tbody>
-//         </table>
-//         <h3>Price Summary</h3>
-//         <ul style="list-style: none; padding: 0;">
-//           <li><strong>Subtotal:</strong> $${parseFloat(subtotal).toFixed(
-//             2
-//           )}</li>
-//           ${
-//             discount > 0
-//               ? `<li><strong>Discount:</strong> $${parseFloat(
-//                   discount
-//                 ).toFixed(2)}</li>`
-//               : ""
-//           }
-//           <li><strong>Tax (6.5%):</strong> $${parseFloat(tax).toFixed(2)}</li>
-//           <li><strong>Shipping:</strong> ${
-//             shipping !== null ? `$${parseFloat(shipping).toFixed(2)}` : "-"
-//           }</li>
-//           <li><strong>Total:</strong> $${parseFloat(total).toFixed(2)}</li>
-//         </ul>
-//       </div>
-//     `;
-
-//     const userMailOptions = {
-//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
-//       to: userEmail,
-//       subject: `Order Submitted - ${orderId} (Pending Approval)`,
-//       html: `
-//         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//           <h2>Thank You for Your Order, ${userFullName}!</h2>
-//           <p>Your order <strong>${orderId}</strong>${
-//             poNumber ? ` (PO: <strong>${poNumber}</strong>)` : ""
-//           } has been submitted on ${new Date().toLocaleDateString()} and is currently <strong>pending admin approval</strong>.</p>
-//           <p><strong>Important:</strong></p>
-//         <ul>
-//   <li>This order cannot be edited or canceled after 24 hours.</li>
-//   <li>Please note: Your order will be considered accepted after 24 hours of placement.</li>
-//   <li>Shipping charges will be applied by the admin based on your location's shipping zone. You'll receive an updated order amount via email once finalized.</li>
-//   <li>Assembly service price will be added upon request.</li>
-// </ul>
-
-//           ${userOrderDetailsHtml}
-//         </div>
-//       `,
-//     };
-
-//     const adminMailOptions = {
-//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
-//       to: "sjingle@studiosignaturecabinets.com",
-//       subject: `New Order Pending Approval - ${orderId}${
-//         poNumber ? ` (PO: ${poNumber})` : ""
-//       }`,
-//       html: `
-//         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//           <h2>New Order Pending Approval: ${orderId}${
-//             poNumber ? ` (PO: ${poNumber})` : ""
-//           }</h2>
-//           <p>A new order has been submitted by <strong>${userFullName}</strong> (${userEmail}) on ${new Date().toLocaleDateString()}.</p>
-//           <p><strong>Phone:</strong> ${userPhone}</p>
-//           ${adminOrderDetailsHtml}
-//         </div>
-//       `,
-//     };
-
-//     try {
-//       await Promise.all([
-//         transporter.sendMail(userMailOptions),
-//         transporter.sendMail(adminMailOptions),
-//       ]);
-//       console.log("Emails sent successfully for orderId:", orderId);
-//     } catch (emailErr) {
-//       console.error("Email sending failed:", emailErr);
-//     }
-
-//     res.status(201).json({
-//       message: "Order submitted successfully and is pending admin approval",
-//       order_id: orderId,
-//       po_number: poNumber || null,
-//       jobsite_address: jobsiteAddress,
-//     });
-//   } catch (err) {
-//     if (connection) {
-//       await connection.rollback();
-//       connection.release();
-//     }
-//     console.error("Transaction failed:", err);
-//     res.status(400).json({ error: err.message || "Error placing order" });
-//   } finally {
-//     if (connection) {
-//       connection.release();
-//     }
-//   }
-// });
 
 app.post("/api/orders", authenticateToken, async (req, res) => {
   const {
@@ -3272,11 +1922,64 @@ app.post("/api/create-payment-intent", authenticateToken, async (req, res) => {
   }
 });
 
+
+
+// app.post("/api/orders/:id/pay", authenticateToken, async (req, res) => {
+//   try {
+//     const { id } = req.params; // <-- S-ORD101358
+//     const { paymentIntentId } = req.body;
+
+//     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+//     if (
+//       !["succeeded", "processing", "requires_capture"].includes(
+//         paymentIntent.status
+//       )
+//     ) {
+//       return res.status(400).json({
+//         error: "Payment not completed",
+//         status: paymentIntent.status,
+//       });
+//     }
+
+//     const paidAmount = paymentIntent.amount / 100;
+
+//     const [result] = await pool.query(
+//       `UPDATE orders
+//        SET payment_status = 'Paid',
+//            payment_intent_id = ?,
+//            paid_amount = ?,
+//            paid_at = NOW()
+//        WHERE order_id = ?`,
+//       [paymentIntentId, paidAmount, id]
+//     );
+
+//     if (result.affectedRows === 0) {
+//       return res.status(404).json({
+//         error: "Order not found",
+//         order_id: id,
+//       });
+//     }
+
+//     res.json({
+//       message: "Payment recorded successfully",
+//       payment_status: "Paid",
+//       paid_amount: paidAmount,
+//       paid_at: new Date(),
+//     });
+//   } catch (err) {
+//     console.error("Payment update error:", err);
+//     res.status(500).json({ error: err.message });
+//   }
+// });
+
+
 app.post("/api/orders/:id/pay", authenticateToken, async (req, res) => {
   try {
-    const { id } = req.params; // <-- S-ORD101358
+    const { id } = req.params; // S-ORD101358
     const { paymentIntentId } = req.body;
 
+    // 1️⃣ Retrieve Stripe payment
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (
@@ -3291,7 +1994,10 @@ app.post("/api/orders/:id/pay", authenticateToken, async (req, res) => {
     }
 
     const paidAmount = paymentIntent.amount / 100;
+    const paymentMethod =
+      paymentIntent.payment_method_types?.[0]?.toUpperCase() || "CARD";
 
+    // 2️⃣ Update order payment info
     const [result] = await pool.query(
       `UPDATE orders
        SET payment_status = 'Paid',
@@ -3309,17 +2015,129 @@ app.post("/api/orders/:id/pay", authenticateToken, async (req, res) => {
       });
     }
 
+    // 3️⃣ Fetch order + user details
+    const [orderRows] = await pool.query(
+      `SELECT 
+        o.order_id,
+        o.total,
+        o.po_number,
+        o.paid_at,
+        u.full_name,
+        u.email,
+        u.phone
+       FROM orders o
+       JOIN users u ON o.user_id = u.id
+       WHERE o.order_id = ?`,
+      [id]
+    );
+
+    const order = orderRows[0];
+
+    // ================================
+    // 📧 EMAIL TEMPLATES
+    // ================================
+
+    const paymentDetailsHtml = `
+      <table style="width:100%; border-collapse:collapse;">
+        <tr><td><strong>Order ID</strong></td><td>${order.order_id}</td></tr>
+        ${
+          order.po_number
+            ? `<tr><td><strong>PO Number</strong></td><td>${order.po_number}</td></tr>`
+            : ""
+        }
+        <tr><td><strong>Paid Amount</strong></td><td>$${paidAmount.toFixed(
+          2
+        )}</td></tr>
+        <tr><td><strong>Payment Method</strong></td><td>${paymentMethod}</td></tr>
+        <tr><td><strong>Payment ID</strong></td><td>${paymentIntentId}</td></tr>
+        <tr><td><strong>Paid On</strong></td><td>${new Date(
+          order.paid_at
+        ).toLocaleString()}</td></tr>
+        <tr><td><strong>Order Total</strong></td><td>$${parseFloat(
+          order.total
+        ).toFixed(2)}</td></tr>
+      </table>
+    `;
+
+    // 📩 USER EMAIL
+    const userMailOptions = {
+      from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+      to: order.email,
+      subject: `Payment Received - ${order.order_id}`,
+      html: `
+        <div style="font-family:Arial; max-width:600px; margin:auto;">
+          <h2 style="color:#2e7d32;">Payment Successful 🎉</h2>
+          <p>Hi <strong>${order.full_name}</strong>,</p>
+          <p>We have successfully received your payment for order <strong>${
+            order.order_id
+          }</strong>.</p>
+
+          <h3>Payment Details</h3>
+          ${paymentDetailsHtml}
+
+          <p style="margin-top:20px;">
+            Thank you for choosing <strong>Studio Signature Cabinets</strong>.
+            If you have any questions, feel free to contact us.
+          </p>
+
+          <p style="font-size:12px; color:#777;">
+            This is an automated confirmation email.
+          </p>
+        </div>
+      `,
+    };
+
+    // 📩 ADMIN EMAIL
+    const adminMailOptions = {
+      from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+      to: "sjingle@studiosignaturecabinets.com",
+    
+    
+      subject: `Payment Completed - ${order.order_id}`,
+      html: `
+        <div style="font-family:Arial; max-width:600px; margin:auto;">
+          <h2 style="color:#1565c0;">Payment Completed</h2>
+
+          <p>
+            Payment has been successfully completed for order
+            <strong>${order.order_id}</strong>.
+          </p>
+
+          <p><strong>Customer:</strong> ${order.full_name} (${order.email})</p>
+          <p><strong>Phone:</strong> ${order.phone || "N/A"}</p>
+
+          <h3>Payment Details</h3>
+          ${paymentDetailsHtml}
+        </div>
+      `,
+    };
+
+    // 4️⃣ Send emails
+    try {
+      await Promise.all([
+        transporter.sendMail(userMailOptions),
+        transporter.sendMail(adminMailOptions),
+      ]);
+      console.log("Payment confirmation emails sent:", id);
+    } catch (mailErr) {
+      console.error("Payment email error:", mailErr);
+    }
+
+    // 5️⃣ Response
     res.json({
-      message: "Payment recorded successfully",
+      message: "Payment recorded and confirmation emails sent",
+      order_id: id,
       payment_status: "Paid",
       paid_amount: paidAmount,
-      paid_at: new Date(),
+      payment_method: paymentMethod,
     });
   } catch (err) {
     console.error("Payment update error:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
+
 
 app.put("/api/orders/:id", authenticateToken, async (req, res) => {
   const orderId = req.params.id;
@@ -4146,90 +2964,6 @@ app.get("/api/count", authenticateToken, async (req, res) => {
   }
 });
 
-// PUT /api/drafts/:id - Update a draft
-// app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
-//   const draftId = req.params.id;
-//   const {
-//     doorStyle,
-//     finishType,
-//     stainOption,
-//     paintOption,
-//     account,
-//     billTo,
-//     items,
-//     designServicesPrice,
-//     assemblyFlag,
-//     subtotal,
-//     tax,
-//     shipping,
-//     total,
-//     discount,
-//   } = req.body;
-
-//   try {
-//     const userId = req.user.id;
-
-//     // Check ownership
-//     const [draft] = await pool.query(
-//       "SELECT user_id FROM draft_orders WHERE id = ?",
-//       [draftId]
-//     );
-//     if (draft.length === 0 || draft[0].user_id !== userId) {
-//       return res.status(403).json({ error: "Unauthorized or draft not found" });
-//     }
-
-//     // Basic validations (similar to POST)
-//     if (!Array.isArray(items)) {
-//       return res.status(400).json({ error: "Items must be an array" });
-//     }
-//     if (!doorStyle || !finishType) {
-//       return res.status(400).json({ error: "Door style and finish type are required" });
-//     }
-//     if (finishType === "Stained" && !stainOption) {
-//       return res.status(400).json({ error: "Stain option is required for stained finish" });
-//     }
-//     if (finishType === "Painted" && !paintOption) {
-//       return res.status(400).json({ error: "Paint option is required for painted finish" });
-//     }
-//     if (designServicesPrice < 0) {
-//       return res.status(400).json({ error: "Design services price cannot be negative" });
-//     }
-//     if (!["Included", "Not Included"].includes(assemblyFlag)) {
-//       return res.status(400).json({ error: "Assembly flag must be 'Included' or 'Not Included'" });
-//     }
-
-//     await pool.query(
-//       `UPDATE draft_orders SET
-//         door_style = ?, finish_type = ?, stain_option = ?, paint_option = ?,
-//         account = ?, bill_to = ?, design_services_price = ?, assembly_flag = ?,
-//         items = ?, subtotal = ?, tax = ?, shipping = ?, discount = ?, total = ?,
-//         updated_at = NOW()
-//       WHERE id = ?`,
-//       [
-//         doorStyle,
-//         finishType,
-//         stainOption || null,
-//         paintOption || null,
-//         account || null,
-//         billTo || null,
-//         designServicesPrice || 0,
-//         assemblyFlag,
-//         JSON.stringify(items),
-//         subtotal || null,
-//         tax || null,
-//         shipping !== undefined ? shipping : null,
-//         discount || null,
-//         total || null,
-//         draftId,
-//       ]
-//     );
-
-//     res.json({ message: "Draft updated successfully" });
-//   } catch (err) {
-//     console.error('Error updating draft:', err);
-//     res.status(500).json({ error: "Error updating draft" });
-//   }
-// });
 
 app.put("/api/drafts/:id", authenticateToken, async (req, res) => {
   const draftId = req.params.id;
@@ -5050,12 +3784,70 @@ app.get("/api/elearning", async (req, res) => {
   }
 });
 
+// app.get("/api/customer/invoices", authenticateToken, async (req, res) => {
+//   const userId = req.user.id;
+
+//   try {
+//     const [invoices] = await pool.query(
+//       `SELECT i.*, o.id AS order_internal_id, o.order_id, o.bill_to, o.account
+//        FROM invoices i
+//        LEFT JOIN orders o ON i.order_id = o.id
+//        WHERE i.user_id = ?`,
+//       [userId]
+//     );
+
+//     // Fetch all order items for each invoice using the internal order_id (o.id)
+//     const orderIds = invoices.map((invoice) => invoice.order_internal_id);
+//     const [items] = await pool.query(
+//       `SELECT oi.order_id, oi.sku, oi.name, oi.quantity, oi.door_style, oi.finish, oi.price, oi.total_amount
+//        FROM order_items oi
+//        WHERE oi.order_id IN (?)`,
+//       [orderIds]
+//     );
+
+//     // Associate items with their respective invoices
+//     const invoicesWithItems = invoices.map((invoice) => ({
+//       ...invoice,
+//       items: items.filter(
+//         (item) => item.order_id === invoice.order_internal_id
+//       ),
+//     }));
+
+//     // Format the response to match the expected structure
+//     const formattedResponse = invoicesWithItems.map((invoice) => ({
+//       id: invoice.id,
+//       invoice_number: invoice.invoice_number,
+//       order_id: invoice.order_id, // Use the string order_id (e.g., "S-ORD101127")
+//       user_id: invoice.user_id,
+//       issue_date: invoice.issue_date,
+//       subtotal: invoice.subtotal,
+//       tax: invoice.tax,
+//       shipping: invoice.shipping,
+//       discount: invoice.discount,
+//       additional_discount: invoice.additional_discount,
+//       total: invoice.total,
+//       items: invoice.items,
+//       finish_type: invoice.finish_type,
+//       door_style: invoice.door_style,
+//       bill_to: invoice.bill_to,
+//       account: invoice.account,
+//     }));
+
+//     res.json(formattedResponse);
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// });
+
+
+
 app.get("/api/customer/invoices", authenticateToken, async (req, res) => {
   const userId = req.user.id;
 
   try {
     const [invoices] = await pool.query(
-      `SELECT i.*, o.id AS order_internal_id, o.order_id, o.bill_to, o.account
+      `SELECT i.*, o.id AS order_internal_id, o.order_id, o.bill_to, o.account, o.door_style, o.finish_type
        FROM invoices i
        LEFT JOIN orders o ON i.order_id = o.id
        WHERE i.user_id = ?`,
@@ -5092,6 +3884,9 @@ app.get("/api/customer/invoices", authenticateToken, async (req, res) => {
       discount: invoice.discount,
       additional_discount: invoice.additional_discount,
       total: invoice.total,
+      paid_at: invoice.paid_at,
+      payment_intent_id: invoice.payment_intent_id,
+      payment_status: invoice.payment_status,
       items: invoice.items,
       finish_type: invoice.finish_type,
       door_style: invoice.door_style,
@@ -5105,6 +3900,9 @@ app.get("/api/customer/invoices", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
+
+
 
 // GET /api/customer/products - Fetch products for customer portal (is_visible = 1)
 app.get("/api/customer/products", authenticateToken, async (req, res) => {
@@ -5623,45 +4421,6 @@ app.post("/api/admin/reset-password", async (req, res) => {
   }
 });
 
-// app.get("/api/admin/users", adminauthenticateToken, async (req, res) => {
-//   try {
-//     const [users] = await pool.query(
-//       `SELECT u.id, u.full_name, u.email, u.phone, u.created_at, u.last_login,
-//               u.account_status, u.is_active, u.company_name, u.street, u.city,
-//               u.state, u.postal_code, u.admin_discount, u.updated_at, u.notes,
-//               u.team_member_id, t.name AS team_member_name
-//        FROM users u
-//        LEFT JOIN team_members t ON u.team_member_id = t.id
-//        WHERE u.user_type = 'customer'`
-//     );
-
-//     res.json({
-//       users: users.map((user) => ({
-//         id: user.id,
-//         fullName: user.full_name,
-//         email: user.email,
-//         phone: user.phone,
-//         joinDate: user.created_at,
-//         lastLogin: user.last_login || null,
-//         account_status: user.account_status,
-//         is_active: user.is_active,
-//         company_name: user.company_name,
-//         street: user.street,
-//         city: user.city,
-//         state: user.state,
-//         postal_code: user.postal_code,
-//         admin_discount: user.admin_discount,
-//         updated_at: user.updated_at,
-//         notes: user.notes,
-//         team_member_id: user.team_member_id,
-//         team_member_name: user.team_member_name,
-//       })),
-//     });
-//   } catch (err) {
-//     console.error("Server error:", err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// });
 
 app.get("/api/admin/users", adminauthenticateToken, async (req, res) => {
   try {
@@ -5706,49 +4465,6 @@ app.get("/api/admin/users", adminauthenticateToken, async (req, res) => {
   }
 });
 
-// app.get("/api/admin/users", adminauthenticateToken, async (req, res) => {
-//   try {
-//     const [users] = await pool.query(
-//       `SELECT u.id, u.full_name, u.email, u.phone, u.created_at, u.last_login,
-//               u.account_status, u.is_active, u.company_name, u.street, u.city, u.special_cust,
-//               u.state, u.postal_code, u.admin_discount, u.updated_at, u.notes,
-//               u.team_member_id, u.profile_photo, t.name AS team_member_name
-//        FROM users u
-//        LEFT JOIN team_members t ON u.team_member_id = t.id
-//        WHERE u.user_type = 'customer'`
-//     );
-
-//     res.json({
-//       users: users.map((user) => ({
-//         id: user.id,
-//         fullName: user.full_name,
-//         email: user.email,
-//         phone: user.phone,
-//         joinDate: user.created_at,
-//         lastLogin: user.last_login || null,
-//         account_status: user.account_status,
-//         is_active: user.is_active,
-//         company_name: user.company_name,
-//         street: user.street,
-//         city: user.city,
-//         state: user.state,
-//         postal_code: user.postal_code,
-//         admin_discount: user.admin_discount,
-//         updated_at: user.updated_at,
-//         notes: user.notes,
-//         team_member_id: user.team_member_id,
-//         team_member_name: user.team_member_name,
-//         profile_photo: user.profile_photo
-//           ? `${req.protocol}://${req.get("host")}${user.profile_photo}`
-//           : null,
-//         special_cust: user.special_cust   // ✅ Added here
-//       })),
-//     });
-//   } catch (err) {
-//     console.error("Server error:", err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// });
 
 app.get("/api/admin/vendors", adminauthenticateToken, async (req, res) => {
   try {
@@ -6054,150 +4770,6 @@ app.put(
 
 // Update User Status
 
-// app.put("/api/admin/user/:id/discount",
-//   adminauthenticateToken,
-//   async (req, res) => {
-//     const { id } = req.params;
-//     const { admin_discount, notes, team_member_id, special_cust } = req.body;
-
-//     console.log("Received payload:", { admin_discount, notes, team_member_id, special_cust });
-
-//     // Validate discount
-//     if (
-//       admin_discount !== undefined &&
-//       (typeof admin_discount !== "number" ||
-//         admin_discount < 0 ||
-//         admin_discount > 100)
-//     ) {
-//       return res
-//         .status(400)
-//         .json({ error: "Discount must be a number between 0 and 100" });
-//     }
-
-//     // Validate notes (optional, can be null or string)
-//     if (notes !== undefined && notes !== null && typeof notes !== "string") {
-//       return res.status(400).json({ error: "Notes must be a string or null" });
-//     }
-
-//     // Validate team_member_id
-//     let parsedTeamMemberId = team_member_id;
-//     if (
-//       team_member_id !== undefined &&
-//       team_member_id !== null &&
-//       typeof team_member_id === "string" &&
-//       !/^\d+$/.test(team_member_id)
-//     ) {
-//       return res
-//         .status(400)
-//         .json({ error: "Team member ID must be a valid integer or null" });
-//     }
-//     if (typeof team_member_id === "string") {
-//       parsedTeamMemberId = parseInt(team_member_id);
-//       if (isNaN(parsedTeamMemberId)) {
-//         return res
-//           .status(400)
-//           .json({ error: "Team member ID must be a valid integer" });
-//       }
-//     }
-//     if (
-//       parsedTeamMemberId !== null &&
-//       (typeof parsedTeamMemberId !== "number" ||
-//         !Number.isInteger(parsedTeamMemberId))
-//     ) {
-//       return res
-//         .status(400)
-//         .json({ error: "Team member ID must be an integer or null" });
-//     }
-
-//     // ✅ Validate special_cust (must be 0 or 1 if provided)
-//     if (
-//       special_cust !== undefined &&
-//       ![0, 1, "0", "1"].includes(special_cust)
-//     ) {
-//       return res
-//         .status(400)
-//         .json({ error: "special_cust must be 0 or 1" });
-//     }
-
-//     try {
-//       // Check if user exists
-//       const [users] = await pool.query("SELECT id FROM users WHERE id = ?", [id]);
-//       if (users.length === 0) {
-//         return res.status(404).json({ error: "User not found" });
-//       }
-
-//       // Validate team_member_id if provided
-//       if (parsedTeamMemberId) {
-//         const [teamMembers] = await pool.query(
-//           "SELECT id, name FROM team_members WHERE id = ?",
-//           [parsedTeamMemberId]
-//         );
-//         if (teamMembers.length === 0) {
-//           return res.status(404).json({ error: "Team member not found" });
-//         }
-//       }
-
-//       // ✅ Update discount, notes, team_member_id, special_cust
-//       await pool.query(
-//         `UPDATE users
-//          SET admin_discount = ?, notes = ?, team_member_id = ?, special_cust = ?, updated_at = NOW()
-//          WHERE id = ?`,
-//         [
-//           admin_discount !== undefined ? admin_discount : null,
-//           notes !== undefined ? notes : null,
-//           parsedTeamMemberId !== undefined ? parsedTeamMemberId : null,
-//           special_cust !== undefined ? special_cust : 0,  // default 0
-//           id,
-//         ]
-//       );
-
-//       // Fetch updated user data
-//       const [updatedUser] = await pool.query(
-//         `SELECT u.id, u.full_name, u.email, u.phone, u.created_at, u.last_login,
-//                 u.account_status, u.is_active, u.company_name, u.street, u.city,
-//                 u.state, u.postal_code, u.admin_discount, u.updated_at, u.notes,
-//                 u.team_member_id, t.name AS team_member_name, u.special_cust
-//          FROM users u
-//          LEFT JOIN team_members t ON u.team_member_id = t.id
-//          WHERE u.id = ?`,
-//         [id]
-//       );
-
-//       if (updatedUser.length === 0) {
-//         return res.status(404).json({ error: "User not found after update" });
-//       }
-
-//       res.json({
-//         message:
-//           "Customer discount, notes, team member, and special flag updated successfully",
-//         user: {
-//           id: updatedUser[0].id,
-//           fullName: updatedUser[0].full_name,
-//           email: updatedUser[0].email,
-//           phone: updatedUser[0].phone,
-//           joinDate: updatedUser[0].created_at,
-//           lastLogin: updatedUser[0].last_login || null,
-//           account_status: updatedUser[0].account_status,
-//           is_active: updatedUser[0].is_active,
-//           company_name: updatedUser[0].company_name,
-//           street: updatedUser[0].street,
-//           city: updatedUser[0].city,
-//           state: updatedUser[0].state,
-//           postal_code: updatedUser[0].postal_code,
-//           admin_discount: updatedUser[0].admin_discount,
-//           updated_at: updatedUser[0].updated_at,
-//           notes: updatedUser[0].notes,
-//           team_member_id: updatedUser[0].team_member_id,
-//           team_member_name: updatedUser[0].team_member_name,
-//           special_cust: updatedUser[0].special_cust, // ✅ included
-//         },
-//       });
-//     } catch (err) {
-//       console.error("Server error:", err);
-//       res.status(500).json({ error: "Server error" });
-//     }
-//   }
-// );
 
 app.put(
   "/api/admin/user/:id/status",
@@ -6282,107 +4854,7 @@ app.put(
 // app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
 //   try {
 //     const [orders] = await pool.query(`
-//       SELECT
-//         o.id AS id,
-//         o.order_id AS orderId,
-//         o.user_id,
-//         u.full_name AS userName,
-//         u.email AS userEmail,
-//         o.created_at AS created_at,
-//         o.door_style AS door_style,
-//         o.finish_type AS finish_type,
-//         o.stain_option AS stain_option,
-//         o.paint_option AS paint_option,
-//         o.account,
-//         o.bill_to,
-//         o.subtotal,
-//         o.tax,
-//         o.shipping,
-//         o.discount,
-//         o.additional_discount,
-//         o.design_services_price,
-//         o.assembly_flag,
-//         o.total,
-//         o.status,
-//         GROUP_CONCAT(
-//           JSON_OBJECT(
-//             'sku', oi.sku,
-//             'name', oi.name,
-//             'quantity', oi.quantity,
-//             'price', oi.price,
-//             'totalAmount', oi.total_amount
-//           ) SEPARATOR ','
-//         ) AS items
-//       FROM orders o
-//       LEFT JOIN users u ON o.user_id = u.id
-//       LEFT JOIN order_items oi ON o.id = oi.order_id
-//       GROUP BY o.id
-//       ORDER BY o.created_at DESC
-//     `);
-
-//     const formattedOrders = orders.map((order) => {
-//       let parsedItems = [];
-//       try {
-//         if (order.items && order.items.trim() !== "") {
-//           parsedItems = JSON.parse(`[${order.items}]`);
-//         }
-//       } catch (e) {
-//         console.error(`Failed to parse items for order ${order.id}`, e);
-//         parsedItems = [];
-//       }
-
-//       return {
-//         id: order.id,
-//         orderId: order.orderId,
-//         userId: order.user_id,
-//         userName: order.userName || "Unknown User",
-//         userEmail: order.userEmail || "N/A",
-//         created_at: order.created_at
-//           ? new Date(order.created_at).toISOString()
-//           : null,
-//         date: order.created_at
-//           ? new Date(order.created_at).toISOString().split("T")[0]
-//           : null,
-//         productLine: order.door_style?.includes("Shaker")
-//           ? "Kitchen Shaker"
-//           : "Bath Shaker",
-//         status: order.status,
-//         total: `$${parseFloat(order.total || 0).toFixed(2)}`,
-//         subtotal: parseFloat(order.subtotal || 0).toFixed(2),
-//         discount: parseFloat(order.discount || 0).toFixed(2),
-//         design_services_price: parseFloat(
-//           order.design_services_price || 0
-//         ).toFixed(2),
-//         assembly_flag: order.assembly_flag,
-//         additional_discount: parseFloat(order.additional_discount || 0).toFixed(
-//           2
-//         ),
-//         tax: parseFloat(order.tax || 0).toFixed(2),
-//         shipping:
-//           order.shipping !== null
-//             ? parseFloat(order.shipping).toFixed(2)
-//             : null,
-//         account: order.account,
-//         bill_to: order.bill_to,
-//         items: parsedItems,
-//         door_style: order.door_style,
-//         finish_type: order.finish_type,
-//         stain_option: order.stain_option,
-//         paint_option: order.paint_option,
-//       };
-//     });
-
-//     res.json(formattedOrders);
-//   } catch (err) {
-//     console.error("Server error:", err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// });
-
-// app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
-//   try {
-//     const [orders] = await pool.query(`
-//       SELECT
+//       SELECT 
 //         o.id AS id,
 //         o.order_id AS orderId,
 //         o.user_id,
@@ -6406,6 +4878,7 @@ app.put(
 //         o.status,
 //         o.po_number,
 //         o.jobsite_address,
+//         o.requested_delivery_date,       -- 🆕 added here
 //         GROUP_CONCAT(
 //           JSON_OBJECT(
 //             'sku', oi.sku,
@@ -6468,6 +4941,10 @@ app.put(
 //         bill_to: order.bill_to,
 //         po_number: order.po_number,
 //         jobsite_address: order.jobsite_address,
+
+//         // 🆕 requested delivery date - NO Date() conversion, keep as DB string
+//         requested_delivery_date: order.requested_delivery_date || null,
+
 //         items: parsedItems,
 //         door_style: order.door_style,
 //         finish_type: order.finish_type,
@@ -6483,13 +4960,13 @@ app.put(
 //   }
 // });
 
+
 // app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
 //   const orderId = req.params.id;
 //   try {
-//     // Fetch order details
 //     const [orders] = await pool.query(
 //       `
-//       SELECT
+//       SELECT 
 //         o.id,
 //         o.order_id AS orderId,
 //         o.user_id,
@@ -6508,9 +4985,13 @@ app.put(
 //         o.additional_discount,
 //         o.design_services_price,
 //         o.assembly_flag,
+//         o.assembly_charges,
 //         o.total,
 //         o.status,
-//         o.created_at AS createdAt
+//         o.created_at AS createdAt,
+//         o.po_number,
+//         o.jobsite_address,
+//         o.requested_delivery_date          -- 🆕 added
 //       FROM orders o
 //       LEFT JOIN users u ON o.user_id = u.id
 //       WHERE o.id = ?
@@ -6524,10 +5005,9 @@ app.put(
 
 //     const order = orders[0];
 
-//     // Fetch order items separately
 //     const [items] = await pool.query(
 //       `
-//       SELECT
+//       SELECT 
 //         sku,
 //         name,
 //         quantity,
@@ -6565,7 +5045,12 @@ app.put(
 //           order.design_services_price || 0
 //         ).toFixed(2),
 //         assembly_flag: order.assembly_flag,
-//         additional_discount: parseFloat(order.additional_discount || 0).toFixed(2),
+//         assembly_charges: order.assembly_charges
+//           ? parseFloat(order.assembly_charges).toFixed(2)
+//           : "0.00",
+//         additional_discount: parseFloat(order.additional_discount || 0).toFixed(
+//           2
+//         ),
 //         additional_discount_percent: parseFloat(additionalDiscountPercent),
 //         total: parseFloat(order.total || 0).toFixed(2),
 //         status: order.status,
@@ -6578,7 +5063,13 @@ app.put(
 //         productLine: order.doorStyle.includes("Shaker")
 //           ? "Kitchen Shaker"
 //           : "Bath Shaker",
-//         items: items || [], // Directly use the queried items
+//         po_number: order.po_number,
+//         jobsite_address: order.jobsite_address,
+
+//         // 🆕 requested delivery date straight from DB (string)
+//         requested_delivery_date: order.requested_delivery_date || null,
+
+//         items: items || [],
 //       },
 //     });
 //   } catch (err) {
@@ -6587,6 +5078,7 @@ app.put(
 //     res.status(500).json({ error: "Server error" });
 //   }
 // });
+
 
 app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
   try {
@@ -6616,6 +5108,9 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
         o.po_number,
         o.jobsite_address,
         o.requested_delivery_date,       -- 🆕 added here
+        o.paid_at,
+        o.payment_status,
+        o.payment_intent_id,
         GROUP_CONCAT(
           JSON_OBJECT(
             'sku', oi.sku,
@@ -6682,6 +5177,10 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
         // 🆕 requested delivery date - NO Date() conversion, keep as DB string
         requested_delivery_date: order.requested_delivery_date || null,
 
+        paid_at: order.paid_at ? new Date(order.paid_at).toISOString() : null,
+        payment_status: order.payment_status,
+        payment_intent_id: order.payment_intent_id,
+
         items: parsedItems,
         door_style: order.door_style,
         finish_type: order.finish_type,
@@ -6697,425 +5196,6 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
   }
 });
 
-// app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
-//   const orderId = req.params.id;
-//   try {
-//     // Fetch order details
-//     const [orders] = await pool.query(
-//       `
-//       SELECT
-//         o.id,
-//         o.order_id AS orderId,
-//         o.user_id,
-//         u.full_name AS userName,
-//         u.email AS userEmail,
-//         o.door_style AS doorStyle,
-//         o.finish_type AS finishType,
-//         o.stain_option AS stainOption,
-//         o.paint_option AS paintOption,
-//         o.account,
-//         o.bill_to AS billTo,
-//         o.subtotal,
-//         o.tax,
-//         o.shipping,
-//         o.discount,
-//         o.additional_discount,
-//         o.design_services_price,
-//         o.assembly_flag,
-//         o.assembly_charges,
-//         o.total,
-//         o.status,
-//         o.created_at AS createdAt,
-//         o.po_number,
-//         o.jobsite_address
-//       FROM orders o
-//       LEFT JOIN users u ON o.user_id = u.id
-//       WHERE o.id = ?
-//     `,
-//       [orderId]
-//     );
-
-//     if (orders.length === 0) {
-//       return res.status(404).json({ error: "Order not found" });
-//     }
-
-//     const order = orders[0];
-
-//     // Fetch order items separately
-//     const [items] = await pool.query(
-//       `
-//       SELECT
-//         sku,
-//         name,
-//         quantity,
-//         price,
-//         total_amount AS totalAmount
-//       FROM order_items
-//       WHERE order_id = ?
-//     `,
-//       [orderId]
-//     );
-
-//     const additionalDiscountPercent =
-//       order.subtotal && order.additional_discount
-//         ? ((order.additional_discount / order.subtotal) * 100).toFixed(2)
-//         : "0.00";
-
-//     res.json({
-//       order: {
-//         id: order.id,
-//         orderId: order.orderId,
-//         userId: order.user_id,
-//         userName: order.userName || "Unknown User",
-//         userEmail: order.userEmail || "N/A",
-//         door_style: order.doorStyle,
-//         finish_type: order.finishType,
-//         stain_option: order.stainOption || "None",
-//         paint_option: order.paintOption || "None",
-//         account: order.account,
-//         bill_to: order.billTo,
-//         subtotal: parseFloat(order.subtotal || 0).toFixed(2),
-//         tax: parseFloat(order.tax || 0).toFixed(2),
-//         shipping: order.shipping ? parseFloat(order.shipping).toFixed(2) : null,
-//         discount: parseFloat(order.discount || 0).toFixed(2),
-//         design_services_price: parseFloat(
-//           order.design_services_price || 0
-//         ).toFixed(2),
-//         assembly_flag: order.assembly_flag,
-//         assembly_charges: order.assembly_charges ? parseFloat(order.assembly_charges).toFixed(2) : "0.00",
-//         additional_discount: parseFloat(order.additional_discount || 0).toFixed(2),
-//         additional_discount_percent: parseFloat(additionalDiscountPercent),
-//         total: parseFloat(order.total || 0).toFixed(2),
-//         status: order.status,
-//         created_at: order.createdAt
-//           ? new Date(order.createdAt).toISOString()
-//           : null,
-//         date: order.createdAt
-//           ? new Date(order.createdAt).toISOString().split("T")[0]
-//           : null,
-//         productLine: order.doorStyle.includes("Shaker")
-//           ? "Kitchen Shaker"
-//           : "Bath Shaker",
-//         po_number: order.po_number,
-//         jobsite_address: order.jobsite_address,
-//         items: items || [], // Directly use the queried items
-//       },
-//     });
-//   } catch (err) {
-//     console.error("Server error:", err);
-//     console.error("Problematic order ID:", orderId);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// });
-
-// app.post("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
-//   const { id } = req.params;
-//   const { shipping, additional_discount } = req.body;
-
-//   console.log(
-//     `POST /api/admin/orders/${id} called with shipping: ${shipping}, additional_discount: ${additional_discount}`
-//   );
-
-//   // Validate inputs if provided
-//   if (
-//     (shipping !== undefined &&
-//       (typeof shipping !== "number" || shipping < 0)) ||
-//     (additional_discount !== undefined &&
-//       (typeof additional_discount !== "number" ||
-//         additional_discount < 0 ||
-//         additional_discount > 100))
-//   ) {
-//     console.log(
-//       `Invalid input: shipping=${shipping}, additional_discount=${additional_discount}`
-//     );
-//     return res
-//       .status(400)
-//       .json({ error: "Invalid shipping or additional discount (0-100%)" });
-//   }
-
-//   try {
-//     // Fetch order details
-//     const [orders] = await pool.query(
-//       `SELECT o.id, o.order_id, o.subtotal, o.tax, o.discount, o.additional_discount AS current_additional_discount,
-//                 o.shipping AS current_shipping, o.total, o.user_id, u.full_name, u.email
-//          FROM orders o
-//          LEFT JOIN users u ON o.user_id = u.id
-//          WHERE o.id = ?`,
-//       [id]
-//     );
-//     if (orders.length === 0) {
-//       console.log(`Order ${id} not found`);
-//       return res.status(404).json({ error: "Order not found" });
-//     }
-
-//     const order = orders[0];
-//     const user = {
-//       full_name: order.full_name || "Customer",
-//       email: order.email || "N/A",
-//     };
-
-//     // Use provided values or keep current
-//     const newShipping =
-//       shipping !== undefined
-//         ? parseFloat(shipping)
-//         : parseFloat(order.current_shipping || 0);
-//     const newAdditionalDiscountPercent =
-//       additional_discount !== undefined
-//         ? parseFloat(additional_discount)
-//         : undefined;
-//     const subtotal = parseFloat(order.subtotal) || 0;
-//     const newAdditionalDiscountAmount =
-//       newAdditionalDiscountPercent !== undefined
-//         ? (newAdditionalDiscountPercent / 100) * subtotal
-//         : parseFloat(order.current_additional_discount || 0);
-
-//     // Calculate new total
-//     const tax = parseFloat(order.tax) || 0;
-//     const discount = parseFloat(order.discount) || 0;
-//     let newTotal;
-//     if (discount > 0) {
-//       newTotal =
-//         subtotal - newAdditionalDiscountAmount - discount + tax + newShipping;
-//     } else {
-//       newTotal = subtotal - newAdditionalDiscountAmount + tax + newShipping;
-//     }
-
-//     // Ensure total is non-negative
-//     if (newTotal < 0) {
-//       console.log(`Invalid total calculated: ${newTotal}`);
-//       return res.status(400).json({ error: "Total cannot be negative" });
-//     }
-
-//     // Update database
-//     await pool.query(
-//       "UPDATE orders SET shipping = ?, additional_discount = ?, total = ? WHERE id = ?",
-//       [newShipping, newAdditionalDiscountAmount, newTotal, id]
-//     );
-
-//     // Send email if changes were made
-//     if (shipping !== undefined || additional_discount !== undefined) {
-//       const mailOptions = {
-//         from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
-//         to: user.email,
-//         subject: `Updated Order #${order.order_id}: Final Amount`,
-//         html: `
-//             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//               <h2>Hello, ${user.full_name}!</h2>
-//               <p>We’ve updated your order <strong>#${
-//                 order.order_id
-//               }</strong>. Below is the final amount including any shipping charges and additional discounts.</p>
-//               <h3>Order Summary:</h3>
-//               <ul style="list-style: none; padding: 0;">
-//                 <li><strong>Order ID:</strong> ${order.order_id}</li>
-//                 <li><strong>Subtotal:</strong> $${subtotal.toFixed(2)}</li>
-//                 <li><strong>Tax:</strong> $${tax.toFixed(2)}</li>
-//                 <li><strong>Discount:</strong> $${discount.toFixed(2)}</li>
-//                 <li><strong>Additional Discount:</strong> ${
-//                   newAdditionalDiscountPercent !== undefined
-//                     ? `${newAdditionalDiscountPercent.toFixed(
-//                         2
-//                       )}% ($${newAdditionalDiscountAmount.toFixed(2)})`
-//                     : `0.00% ($${newAdditionalDiscountAmount.toFixed(2)})`
-//                 }</li>
-//                 <li><strong>Shipping Charges:</strong> $${newShipping.toFixed(
-//                   2
-//                 )}</li>
-//                 <li><strong>Final Total:</strong> $${newTotal.toFixed(2)}</li>
-//               </ul>
-//               <p><strong>Next Steps:</strong></p>
-//               <ul>
-//                 <li>You can view your updated order details at <a href="https://studiosignaturecabinets.com/customer/orders">My Orders</a>.</li>
-//                 <li>Contact us at <a href="mailto:info@studiosignaturecabinets.com">info@studiosignaturecabinets.com</a> for questions.</li>
-//               </ul>
-//               <p>Thank you for choosing Studio Signature Cabinets!</p>
-//               <p>Best regards,<br>Team Studio Signature Cabinets</p>
-//             </div>
-//           `,
-//       };
-
-//       try {
-//         await transporter.sendMail(mailOptions);
-//         console.log(`Update email sent to ${user.email}`);
-//       } catch (emailErr) {
-//         console.error("Failed to send update email:", emailErr);
-//       }
-//     }
-
-//     console.log(
-//       `Order ${id} updated: shipping=${newShipping}, additional_discount_amount=${newAdditionalDiscountAmount}, total=${newTotal}`
-//     );
-//     res.json({
-//       message: "Changes updated successfully",
-//       shipping: newShipping,
-//       additional_discount_amount: newAdditionalDiscountAmount,
-//       additional_discount_percent:
-//         newAdditionalDiscountPercent !== undefined
-//           ? newAdditionalDiscountPercent
-//           : (order.current_additional_discount / subtotal) * 100 || 0,
-//       total: newTotal,
-//     });
-//   } catch (err) {
-//     console.error("Server error updating order:", err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// });
-
-// // PUT /api/admin/orders/:id/shipping (fallback)
-// app.put(
-//   "/api/admin/orders/:id/shipping",
-//   adminauthenticateToken,
-//   async (req, res) => {
-//     const { id } = req.params;
-//     const { shipping, additional_discount } = req.body;
-
-//     console.log(
-//       `PUT /api/admin/orders/${id}/shipping called with shipping: ${shipping}, additional_discount: ${additional_discount}`
-//     );
-
-//     // Validate inputs if provided
-//     if (
-//       (shipping !== undefined &&
-//         (typeof shipping !== "number" || shipping < 0)) ||
-//       (additional_discount !== undefined &&
-//         (typeof additional_discount !== "number" ||
-//           additional_discount < 0 ||
-//           additional_discount > 100))
-//     ) {
-//       console.log(
-//         `Invalid input: shipping=${shipping}, additional_discount=${additional_discount}`
-//       );
-//       return res
-//         .status(400)
-//         .json({ error: "Invalid shipping or additional discount (0-100%)" });
-//     }
-
-//     try {
-//       // Fetch order details
-//       const [orders] = await pool.query(
-//         `SELECT o.id, o.order_id, o.subtotal, o.tax, o.discount, o.additional_discount AS current_additional_discount,
-//                 o.shipping AS current_shipping, o.total, o.user_id, u.full_name, u.email
-//          FROM orders o
-//          LEFT JOIN users u ON o.user_id = u.id
-//          WHERE o.id = ?`,
-//         [id]
-//       );
-//       if (orders.length === 0) {
-//         console.log(`Order ${id} not found`);
-//         return res.status(404).json({ error: "Order not found" });
-//       }
-
-//       const order = orders[0];
-//       const user = {
-//         full_name: order.full_name || "Customer",
-//         email: order.email || "N/A",
-//       };
-
-//       // Use provided values or keep current
-//       const newShipping =
-//         shipping !== undefined
-//           ? parseFloat(shipping)
-//           : parseFloat(order.current_shipping || 0);
-//       const newAdditionalDiscountPercent =
-//         additional_discount !== undefined
-//           ? parseFloat(additional_discount)
-//           : undefined;
-//       const subtotal = parseFloat(order.subtotal) || 0;
-//       const newAdditionalDiscountAmount =
-//         newAdditionalDiscountPercent !== undefined
-//           ? (newAdditionalDiscountPercent / 100) * subtotal
-//           : parseFloat(order.current_additional_discount || 0);
-
-//       // Calculate new total
-//       const tax = parseFloat(order.tax) || 0;
-//       const discount = parseFloat(order.discount) || 0;
-//       let newTotal;
-//       if (discount > 0) {
-//         newTotal =
-//           subtotal - newAdditionalDiscountAmount - discount + tax + newShipping;
-//       } else {
-//         newTotal = subtotal - newAdditionalDiscountAmount + tax + newShipping;
-//       }
-
-//       // Ensure total is non-negative
-//       if (newTotal < 0) {
-//         console.log(`Invalid total calculated: ${newTotal}`);
-//         return res.status(400).json({ error: "Total cannot be negative" });
-//       }
-
-//       // Update database
-//       await pool.query(
-//         "UPDATE orders SET shipping = ?, additional_discount = ?, total = ? WHERE id = ?",
-//         [newShipping, newAdditionalDiscountAmount, newTotal, id]
-//       );
-
-//       // Send email if changes were made
-//       if (shipping !== undefined || additional_discount !== undefined) {
-//         const mailOptions = {
-//           from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
-//           to: user.email,
-//           subject: `Updated Order #${order.order_id}: Final Amount`,
-//           html: `
-//             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//               <h2>Hello, ${user.full_name}!</h2>
-//               <p>We’ve updated your order <strong>#${
-//                 order.order_id
-//               }</strong>. Below is the final amount including any shipping charges and additional discounts.</p>
-//               <h3>Order Summary:</h3>
-//               <ul style="list-style: none; padding: 0;">
-//                 <li><strong>Order ID:</strong> ${order.order_id}</li>
-//                 <li><strong>Subtotal:</strong> $${subtotal.toFixed(2)}</li>
-//                 <li><strong>Tax:</strong> $${tax.toFixed(2)}</li>
-//                 <li><strong>Discount:</strong> $${discount.toFixed(2)}</li>
-//                 <li><strong>Additional Discount:</strong> ${
-//                   newAdditionalDiscountPercent !== undefined
-//                     ? `${newAdditionalDiscountPercent.toFixed(
-//                         2
-//                       )}% ($${newAdditionalDiscountAmount.toFixed(2)})`
-//                     : `0.00% ($${newAdditionalDiscountAmount.toFixed(2)})`
-//                 }</li>
-//                 <li><strong>Shipping Charges:</strong> $${newShipping.toFixed(
-//                   2
-//                 )}</li>
-//                 <li><strong>Final Total:</strong> $${newTotal.toFixed(2)}</li>
-//               </ul>
-//               <p><strong>Next Steps:</strong></p>
-//               <ul>
-//                 <li>You can view your updated order details at <a href="https://studiosignaturecabinets.com/customer/orders">My Orders</a>.</li>
-//                 <li>Contact us at <a href="mailto:info@studiosignaturecabinets.com">info@studiosignaturecabinets.com</a> for questions.</li>
-//               </ul>
-//               <p>Thank you for choosing Studio Signature Cabinets!</p>
-//               <p>Best regards,<br>Team Studio Signature Cabinets</p>
-//             </div>
-//           `,
-//         };
-
-//         try {
-//           await transporter.sendMail(mailOptions);
-//           console.log(`Update email sent to ${user.email}`);
-//         } catch (emailErr) {
-//           console.error("Failed to send update email:", emailErr);
-//         }
-//       }
-
-//       console.log(
-//         `Order ${id} updated: shipping=${newShipping}, additional_discount_amount=${newAdditionalDiscountAmount}, total=${newTotal}`
-//       );
-//       res.json({
-//         message: "Changes updated successfully",
-//         shipping: newShipping,
-//         additional_discount_amount: newAdditionalDiscountAmount,
-//         additional_discount_percent:
-//           newAdditionalDiscountPercent !== undefined
-//             ? newAdditionalDiscountPercent
-//             : (order.current_additional_discount / subtotal) * 100 || 0,
-//         total: newTotal,
-//       });
-//     } catch (err) {
-//       console.error("Server error updating order:", err);
-//       res.status(500).json({ error: "Server error" });
-//     }
-//   }
-// );
 
 app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
   const orderId = req.params.id;
@@ -7147,7 +5227,10 @@ app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
         o.created_at AS createdAt,
         o.po_number,
         o.jobsite_address,
-        o.requested_delivery_date          -- 🆕 added
+        o.requested_delivery_date,          -- 🆕 added
+        o.paid_at,
+        o.payment_status,
+        o.payment_intent_id
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
       WHERE o.id = ?
@@ -7225,6 +5308,10 @@ app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
         // 🆕 requested delivery date straight from DB (string)
         requested_delivery_date: order.requested_delivery_date || null,
 
+        paid_at: order.paid_at ? new Date(order.paid_at).toISOString() : null,
+        payment_status: order.payment_status,
+        payment_intent_id: order.payment_intent_id,
+
         items: items || [],
       },
     });
@@ -7234,6 +5321,8 @@ app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
+
 
 app.post("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
   const { id } = req.params;
@@ -7611,29 +5700,21 @@ app.put(
   }
 );
 
-// async function generateInvoiceNumbers(connection) {
-//   // Get last invoice number (only digits)
-//   const [rows] = await connection.query(
-//     `SELECT invoice_number
-//      FROM invoices
-//      WHERE invoice_number REGEXP '^[0-9]+$'
-//      ORDER BY CAST(invoice_number AS UNSIGNED) DESC
-//      LIMIT 1`
-//   );
 
-//   let nextNumber = 100001;
+// ✅ New generateInvoiceNumbers – based on order_id, not DB auto-increment
+async function generateInvoiceNumbers(orderId) {
+  // Example orderId: "S-ORD101335"
+  // Extract only the numeric portion
+  const numberPart = orderId.replace(/[^0-9]/g, ""); // → "101335"
 
-//   if (rows.length > 0) {
-//     const last = parseInt(rows[0].invoice_number, 10);
-//     if (!isNaN(last) && last >= 100001) {
-//       nextNumber = last + 1;
-//     }
-//   }
+  // Build invoice number: INV-101335
+  return `INV-${numberPart}`;
+}
 
-//   return String(nextNumber);
-// }
 
-// app.put("/api/admin/orders/:id/status",
+
+// app.put(
+//   "/api/admin/orders/:id/status",
 //   adminauthenticateToken,
 //   async (req, res) => {
 //     const { id } = req.params;
@@ -7659,12 +5740,12 @@ app.put(
 
 //       // Fetch order details
 //       const [orders] = await connection.query(
-//         `SELECT o.id, o.order_id, o.user_id, o.door_style, o.finish_type, o.stain_option, o.paint_option,
-//               o.subtotal, o.tax, o.shipping, o.discount, o.additional_discount, o.total, o.status,
-//               u.full_name, u.email
-//        FROM orders o
-//        LEFT JOIN users u ON o.user_id = u.id
-//        WHERE o.id = ?`,
+//         `SELECT o.id, o.order_id, o.user_id, o.door_style, o.finish_type, o.stain_option, o.paint_option, 
+//                 o.subtotal, o.tax, o.shipping, o.discount, o.additional_discount, o.total, o.status, 
+//                 u.full_name, u.email 
+//          FROM orders o 
+//          LEFT JOIN users u ON o.user_id = u.id 
+//          WHERE o.id = ?`,
 //         [id]
 //       );
 
@@ -7689,6 +5770,7 @@ app.put(
 //         full_name: order.full_name || "Customer",
 //         email: order.email || "N/A",
 //       };
+
 //       const additionalDiscountPercent =
 //         order.subtotal && order.additional_discount
 //           ? ((order.additional_discount / order.subtotal) * 100).toFixed(2)
@@ -7698,9 +5780,9 @@ app.put(
 //       if (status === "Cancelled") {
 //         // Fetch order items
 //         const [orderItems] = await connection.query(
-//           `SELECT sku, quantity
-//          FROM order_items
-//          WHERE order_id = ?`,
+//           `SELECT sku, quantity 
+//            FROM order_items 
+//            WHERE order_id = ?`,
 //           [order.id]
 //         );
 
@@ -7735,12 +5817,14 @@ app.put(
 //       // Generate invoice if status is Completed
 //       let invoiceNumber = null;
 //       if (status === "Completed") {
-//         // invoiceNumber = `INV-${order.order_id}-${Date.now()}`;
-//         invoiceNumber = await generateInvoiceNumbers(connection);
+//         // ✅ Use order.order_id to generate invoice
+//         // e.g. order.order_id = "S-ORD101335" → invoiceNumber = "INV-101335"
+//         invoiceNumber = await generateInvoiceNumbers(order.order_id);
 
 //         await connection.query(
-//           `INSERT INTO invoices (invoice_number, order_id, user_id, subtotal, tax, shipping, discount, additional_discount, total)
-//          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+//           `INSERT INTO invoices 
+//              (invoice_number, order_id, user_id, subtotal, tax, shipping, discount, additional_discount, total)
+//            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 //           [
 //             invoiceNumber,
 //             order.id,
@@ -7757,9 +5841,9 @@ app.put(
 
 //       // Fetch order items for email
 //       const [orderItems] = await connection.query(
-//         `SELECT sku, name, quantity, door_style, finish, price, total_amount
-//        FROM order_items
-//        WHERE order_id = ?`,
+//         `SELECT sku, name, quantity, door_style, finish, price, total_amount 
+//          FROM order_items 
+//          WHERE order_id = ?`,
 //         [order.id]
 //       );
 
@@ -7858,65 +5942,99 @@ app.put(
 //             `,
 //             };
 //             break;
+
 //           case "Accepted":
 //             mailOptions = {
 //               from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
 //               to: user.email,
-//               subject: `Your Order #${order.order_id} Has Been Accepted!`,
+//               subject: `Your Order #${order.order_id} Has Been Accepted – Payment Required`,
 //               html: `
-//               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-//                 <h2>Hello, ${user.full_name}!</h2>
-//                 <p>Great news! Your order <strong>#${
-//                   order.order_id
-//                 }</strong> has been accepted and is now being processed.</p>
-//                 <h3>Order Details:</h3>
-//                 <ul style="list-style: none; padding: 0;">
-//                   <li><strong>Order ID:</strong> ${order.order_id}</li>
-//                   <li><strong>Door Style:</strong> ${order.door_style}</li>
-//                   <li><strong>Finish Type:</strong> ${order.finish_type}</li>
-//                   ${
-//                     order.stain_option
-//                       ? `<li><strong>Stain Option:</strong> ${order.stain_option}</li>`
-//                       : ""
-//                   }
-//                   ${
-//                     order.paint_option
-//                       ? `<li><strong>Paint Option:</strong> ${order.paint_option}</li>`
-//                       : ""
-//                   }
-//                   <li><strong>Subtotal:</strong> $${parseFloat(
-//                     order.subtotal
-//                   ).toFixed(2)}</li>
-//                   <li><strong>Special Discount:</strong> $${parseFloat(
-//                     order.discount || 0
-//                   ).toFixed(2)}</li>
-//                   <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(
-//                 order.additional_discount || 0
-//               ).toFixed(2)})</li>
-//                   <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(
-//                     2
-//                   )}</li>
-//                   <li><strong>Shipping:</strong> ${
-//                     order.shipping !== null
-//                       ? `$${parseFloat(order.shipping).toFixed(2)}`
-//                       : "-"
-//                   }</li>
-//                   <li><strong>Total:</strong> $${parseFloat(
-//                     order.total
-//                   ).toFixed(2)}</li>
-//                 </ul>
-//                 <p><strong>Next Steps:</strong></p>
-//                 <ul>
-//                   <li>Your order is now in the processing stage. We’ll notify you with updates on its progress.</li>
-//                   <li>You can track your order status in your account at <a href="https://studiosignaturecabinets.com/customer/orders">My Orders</a>.</li>
-//                 </ul>
-//                 <p>If you have any questions, please contact our support team at <a href="mailto:info@studiosignaturecabinets.com">info@studiosignaturecabinets.com</a>.</p>
-//                 <p>Thank you for choosing Studio Signature Cabinets!</p>
-//                 <p>Best regards,<br>Team Studio Signature Cabinets</p>
-//               </div>
-//             `,
+//     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+//       <h2>Hello, ${user.full_name}!</h2>
+
+//       <p>
+//         We’re happy to inform you that your order 
+//         <strong>#${order.order_id}</strong> has been <strong>accepted</strong>.
+//       </p>
+
+//       <p style="color: #d9534f; font-weight: bold;">
+//         ✅ Next Step: Please complete your payment to proceed with order processing.
+//       </p>
+
+//       <h3>Order Summary</h3>
+//       <ul style="list-style: none; padding: 0;">
+//         <li><strong>Order ID:</strong> ${order.order_id}</li>
+//         <li><strong>Door Style:</strong> ${order.door_style}</li>
+//         <li><strong>Finish Type:</strong> ${order.finish_type}</li>
+//         ${
+//           order.stain_option
+//             ? `<li><strong>Stain Option:</strong> ${order.stain_option}</li>`
+//             : ""
+//         }
+//         ${
+//           order.paint_option
+//             ? `<li><strong>Paint Option:</strong> ${order.paint_option}</li>`
+//             : ""
+//         }
+//         <li><strong>Subtotal:</strong> $${parseFloat(order.subtotal).toFixed(
+//           2
+//         )}</li>
+//         <li><strong>Special Discount:</strong> $${parseFloat(
+//           order.discount || 0
+//         ).toFixed(2)}</li>
+//         <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% 
+//           ($${parseFloat(order.additional_discount || 0).toFixed(2)})
+//         </li>
+//         <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(2)}</li>
+//         <li><strong>Shipping:</strong> ${
+//           order.shipping !== null
+//             ? `$${parseFloat(order.shipping).toFixed(2)}`
+//             : "-"
+//         }</li>
+//         <li><strong>Total Amount:</strong> 
+//           <span style="font-size: 16px; font-weight: bold;">
+//             $${parseFloat(order.total).toFixed(2)}
+//           </span>
+//         </li>
+//       </ul>
+
+//       <div style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #007bff;">
+//         <p style="margin: 0;">
+//           👉 Please log in to your account and click <strong>Pay Now</strong> 
+//           to complete the payment and move your order to processing.
+//         </p>
+//       </div>
+
+//       <p>
+//         🔗 <a href="https://studiosignaturecabinets.com/customer/orders" 
+//               style="color: #007bff; font-weight: bold;">
+//           Go to My Orders & Make Payment
+//         </a>
+//       </p>
+
+//       <p>
+//         Once payment is completed, your order will move to the 
+//         <strong>Processing</strong> stage automatically.
+//       </p>
+
+//       <p>
+//         If you have any questions or need assistance, feel free to contact us at
+//         <a href="mailto:info@studiosignaturecabinets.com">
+//           info@studiosignaturecabinets.com
+//         </a>.
+//       </p>
+
+//       <p>Thank you for choosing Studio Signature Cabinets!</p>
+
+//       <p>
+//         Best regards,<br/>
+//         <strong>Team Studio Signature Cabinets</strong>
+//       </p>
+//     </div>
+//   `,
 //             };
 //             break;
+
 //           case "Processing":
 //             mailOptions = {
 //               from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
@@ -7976,6 +6094,7 @@ app.put(
 //             `,
 //             };
 //             break;
+
 //           case "Cancelled":
 //             mailOptions = {
 //               from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
@@ -8063,18 +6182,8 @@ app.put(
 //   }
 // );
 
-// ✅ New generateInvoiceNumbers – based on order_id, not DB auto-increment
-async function generateInvoiceNumbers(orderId) {
-  // Example orderId: "S-ORD101335"
-  // Extract only the numeric portion
-  const numberPart = orderId.replace(/[^0-9]/g, ""); // → "101335"
 
-  // Build invoice number: INV-101335
-  return `INV-${numberPart}`;
-}
-
-app.put(
-  "/api/admin/orders/:id/status",
+app.put("/api/admin/orders/:id/status",
   adminauthenticateToken,
   async (req, res) => {
     const { id } = req.params;
@@ -8102,6 +6211,7 @@ app.put(
       const [orders] = await connection.query(
         `SELECT o.id, o.order_id, o.user_id, o.door_style, o.finish_type, o.stain_option, o.paint_option, 
                 o.subtotal, o.tax, o.shipping, o.discount, o.additional_discount, o.total, o.status, 
+                o.paid_at, o.payment_intent_id, o.payment_status,
                 u.full_name, u.email 
          FROM orders o 
          LEFT JOIN users u ON o.user_id = u.id 
@@ -8183,8 +6293,8 @@ app.put(
 
         await connection.query(
           `INSERT INTO invoices 
-             (invoice_number, order_id, user_id, subtotal, tax, shipping, discount, additional_discount, total)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (invoice_number, order_id, user_id, subtotal, tax, shipping, discount, additional_discount, total, paid_at, payment_intent_id, payment_status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             invoiceNumber,
             order.id,
@@ -8195,6 +6305,9 @@ app.put(
             order.discount,
             order.additional_discount,
             order.total,
+            order.paid_at,
+            order.payment_intent_id,
+            order.payment_status,
           ]
         );
       }
@@ -8524,6 +6637,95 @@ app.put(
         } catch (emailErr) {
           console.error(`Failed to send email for ${status} status:`, emailErr);
         }
+
+        // Additional email to manager for Accepted status
+        if (status === "Accepted") {
+          const managerEmail = "afolk@studiosignaturecabinets.com";
+          const managerMailOptions = {
+            from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+            to: managerEmail,
+            subject: `New Order Accepted: #${order.order_id}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2>Order Accepted Notification</h2>
+                <p>An order has been accepted. Details below:</p>
+                <h3>Customer Information:</h3>
+                <ul style="list-style: none; padding: 0;">
+                  <li><strong>Full Name:</strong> ${user.full_name}</li>
+                  <li><strong>Email:</strong> ${user.email}</li>
+                </ul>
+                <h3>Order Details:</h3>
+                <ul style="list-style: none; padding: 0;">
+                  <li><strong>Order ID:</strong> ${order.order_id}</li>
+                  <li><strong>Door Style:</strong> ${order.door_style}</li>
+                  <li><strong>Finish Type:</strong> ${order.finish_type}</li>
+                  ${
+                    order.stain_option
+                      ? `<li><strong>Stain Option:</strong> ${order.stain_option}</li>`
+                      : ""
+                  }
+                  ${
+                    order.paint_option
+                      ? `<li><strong>Paint Option:</strong> ${order.paint_option}</li>`
+                      : ""
+                  }
+                </ul>
+                <h3>Order Items:</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                  <thead>
+                    <tr style="background-color: #f2f2f2;">
+                      <th style="border: 1px solid #ddd; padding: 8px;">SKU</th>
+                      <th style="border: 1px solid #ddd; padding: 8px;">Name</th>
+                      <th style="border: 1px solid #ddd; padding: 8px;">Quantity</th>
+                      <th style="border: 1px solid #ddd; padding: 8px;">Price</th>
+                      <th style="border: 1px solid #ddd; padding: 8px;">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${orderItems
+                      .map(
+                        (item) => `
+                      <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">${item.sku}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">${item.quantity}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">$${parseFloat(item.price || 0).toFixed(2)}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">$${parseFloat(item.total_amount || 0).toFixed(2)}</td>
+                      </tr>
+                    `
+                      )
+                      .join("")}
+                  </tbody>
+                </table>
+                <h3 style="margin-top: 20px;">Summary:</h3>
+                <ul style="list-style: none; padding: 0;">
+                  <li><strong>Subtotal:</strong> $${parseFloat(order.subtotal).toFixed(2)}</li>
+                  <li><strong>Special Discount:</strong> $${parseFloat(order.discount || 0).toFixed(2)}</li>
+                  <li><strong>Additional Discount:</strong> ${additionalDiscountPercent}% ($${parseFloat(order.additional_discount || 0).toFixed(2)})</li>
+                  <li><strong>Tax:</strong> $${parseFloat(order.tax).toFixed(2)}</li>
+                  <li><strong>Shipping:</strong> ${
+                    order.shipping !== null
+                      ? `$${parseFloat(order.shipping).toFixed(2)}`
+                      : "-"
+                  }</li>
+                  <li><strong>Total:</strong> $${parseFloat(order.total).toFixed(2)}</li>
+                </ul>
+                <p><strong>Next Steps:</strong> Review the order and proceed as necessary.</p>
+                <p>For inquiries, contact the team at <a href="mailto:info@studiosignaturecabinets.com">info@studiosignaturecabinets.com</a>.</p>
+                <p>Best regards,<br>Team Studio Signature Cabinets</p>
+              </div>
+            `,
+          };
+
+          try {
+            await transporter.sendMail(managerMailOptions);
+            console.log(
+              `Manager email sent for order ${order.order_id} status: ${status}`
+            );
+          } catch (emailErr) {
+            console.error(`Failed to send manager email for ${status} status:`, emailErr);
+          }
+        }
       }
 
       res.json({ message: "Order status updated successfully" });
@@ -8541,6 +6743,7 @@ app.put(
     }
   }
 );
+
 
 cron.schedule("* * * * *", async () => {
   console.log(
@@ -8870,23 +7073,6 @@ app.get(
   }
 );
 
-// Fetch all users (customers/vendors)
-// app.get(
-//   "/api/adminuserpanel/users",
-//   adminauthenticateToken,
-//   async (req, res) => {
-//     try {
-//       const [customerVendorUsers] = await pool.query(
-//         "SELECT id, full_name AS fullName, email, user_type AS userType, created_at, updated_at FROM users "
-//       );
-//       console.log("Fetched users:", customerVendorUsers); // Debug log
-//       res.json({ users: customerVendorUsers });
-//     } catch (err) {
-//       console.error("Fetch users error:", err);
-//       res.status(500).json({ error: "Server error" });
-//     }
-//   }
-// );
 
 app.get(
   "/api/adminuserpanel/users",
@@ -8904,77 +7090,6 @@ app.get(
     }
   }
 );
-
-// Admin registration
-// app.post( "/api/adminuserpanel/register",adminauthenticateToken,
-//   async (req, res) => {
-//     const { fullName, email, password, confirmPassword, phone, bio } = req.body;
-
-//     // Validate input
-//     if (!fullName || !email || !password || !confirmPassword) {
-//       return res
-//         .status(400)
-//         .json({ error: "All required fields must be provided" });
-//     }
-//     if (!validateEmail(email)) {
-//       return res.status(400).json({ error: "Invalid email address" });
-//     }
-//     if (!validatePassword(password)) {
-//       return res.status(400).json({
-//         error:
-//           "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character",
-//       });
-//     }
-//     if (password !== confirmPassword) {
-//       return res.status(400).json({ error: "Passwords do not match" });
-//     }
-//     if (phone && !validatePhone(phone)) {
-//       return res
-//         .status(400)
-//         .json({ error: "Phone number must be exactly 10 digits" });
-//     }
-
-//     try {
-//       // Check if email exists in admins or users table
-//       const [adminEmail] = await pool.query(
-//         "SELECT id FROM admins WHERE email = ?",
-//         [email]
-//       );
-//       const [userEmail] = await pool.query(
-//         "SELECT id FROM users WHERE email = ?",
-//         [email]
-//       );
-//       if (adminEmail.length > 0 || userEmail.length > 0) {
-//         return res.status(400).json({ error: "Email already exists" });
-//       }
-
-//       // Hash password
-//       const hashedPassword = await bcrypt.hash(password, 10);
-
-//       // Insert admin
-//       const [result] = await pool.query(
-//         "INSERT INTO admins (full_name, email, password, role, phone, bio, is_active) VALUES (?, ?, ?, 'Administrator', ?, ?, 1)",
-//         [fullName, email, hashedPassword, phone || null, bio || null]
-//       );
-
-//       res.json({
-//         user: {
-//           id: result.insertId,
-//           fullName,
-//           email,
-//           userType: "Administrator",
-//           created_at: new Date().toISOString(),
-//           updated_at: new Date().toISOString(),
-//         },
-//         message: "Admin registered successfully",
-//       });
-//     } catch (err) {
-//       console.error("Admin register error:", err);
-//       res.status(500).json({ error: "Server error" });
-//     }
-//   }
-// );
-
 app.post(
   "/api/adminuserpanel/register",
   adminauthenticateToken,
@@ -9217,109 +7332,6 @@ app.post(
   }
 );
 
-// app.post(
-//   "/api/adminuserpanel/signup",
-//   adminauthenticateToken,
-//   async (req, res) => {
-//     const {
-//       userType,
-//       fullName,
-//       email,
-//       password,
-//       confirmPassword,
-//       companyName,
-//       taxId,
-//       phone,
-//       address,
-//       agreeTerms,
-//     } = req.body;
-
-//     // Validate input
-//     if (
-//       !userType ||
-//       !fullName ||
-//       !email ||
-//       !password ||
-//       !confirmPassword ||
-//       (userType === "vendor" && (!companyName || !taxId || !phone || !address))
-//     ) {
-//       return res
-//         .status(400)
-//         .json({ error: "All required fields must be provided" });
-//     }
-//     if (!["customer", "vendor"].includes(userType)) {
-//       return res.status(400).json({ error: "Invalid user type" });
-//     }
-//     if (!validateEmail(email)) {
-//       return res.status(400).json({ error: "Invalid email address" });
-//     }
-//     if (!validatePassword(password)) {
-//       return res.status(400).json({
-//         error:
-//           "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character",
-//       });
-//     }
-//     if (password !== confirmPassword) {
-//       return res.status(400).json({ error: "Passwords do not match" });
-//     }
-//     if (phone && !validatePhone(phone)) {
-//       return res
-//         .status(400)
-//         .json({ error: "Phone number must be exactly 10 digits" });
-//     }
-
-//     try {
-//       // Check if email exists in users or admin table
-//       const [userEmail] = await pool.query(
-//         "SELECT id FROM users WHERE email = ?",
-//         [email]
-//       );
-
-//       if (userEmail.length > 0) {
-//         return res.status(400).json({ error: "Email already exists" });
-//       }
-
-//       // Hash password
-//       const hashedPassword = await bcrypt.hash(password, 10);
-
-//       // Insert user
-//       const [result] = await pool.query(
-//         `INSERT INTO users
-//       (user_type, full_name, email, password, company_name, tax_id, phone, address, account_status, is_active, created_at, updated_at)
-//       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Active', 1, NOW(), NOW())`,
-//         [
-//           userType,
-//           fullName,
-//           email,
-//           hashedPassword,
-//           companyName || null,
-//           taxId || null,
-//           phone || null,
-//           address || null,
-//         ]
-//       );
-
-//       res.json({
-//         user: {
-//           id: result.insertId,
-//           fullName,
-//           email,
-//           userType,
-//           created_at: new Date().toISOString(),
-//           updated_at: new Date().toISOString(),
-//         },
-//         message: `${
-//           userType.charAt(0).toUpperCase() + userType.slice(1)
-//         } registered successfully`,
-//       });
-//     } catch (err) {
-//       console.error("Signup error:", err);
-//       res.status(500).json({ error: "Server error" });
-//     }
-//   }
-// );
-
-// Delete a user from users table
 
 app.delete(
   "/api/adminuserpanel/users/:id",
@@ -9374,27 +7386,6 @@ app.delete(
   }
 );
 
-// app.get("/api/admin/vendorproducts",adminauthenticateToken,
-//   async (req, res) => {
-//     try {
-//       const { vendor_id } = req.query;
-//       let query =
-//         "SELECT product_id, vendor_id, name, category, sku, price, currency, in_stock, lead_time, image_url, description, created_at, updated_at FROM vendorproducts WHERE 1=1";
-//       const params = [];
-
-//       if (vendor_id) {
-//         query += " AND vendor_id = ?";
-//         params.push(vendor_id);
-//       }
-
-//       const [rows] = await pool.query(query, params);
-//       res.json(rows);
-//     } catch (err) {
-//       console.error("Error fetching vendor products:", err);
-//       res.status(500).json({ error: "Failed to fetch vendor products" });
-//     }
-//   }
-// );
 
 // GET /api/items?sku=<sku>&item_type=<item_type>&color=<color>
 
@@ -9459,70 +7450,6 @@ app.get("/api/admin/items", adminauthenticateToken, async (req, res) => {
   }
 });
 
-// app.post("/api/admin/items", adminauthenticateToken, async (req, res) => {
-//   try {
-//     const {
-//       sku,
-//       description,
-//       item_type,
-//       unit_of_measure,
-//       color,
-//       price,
-//       qty,
-//       search_description,
-//       weight,
-//       cube,
-//       cw,
-//       gr,
-//       se,
-//       sw,
-//     } = req.body;
-
-//     // Validate required fields
-//     if (
-//       !sku ||
-//       !description ||
-//       !item_type ||
-//       !unit_of_measure ||
-//       !color ||
-//       price == null ||
-//       qty == null
-//     ) {
-//       return res.status(400).json({
-//         error:
-//           "Missing required fields: sku, description, item_type, unit_of_measure, color, price, qty",
-//       });
-//     }
-
-//     const [result] = await pool.query(
-//       "INSERT INTO items (sku, description, item_type, search_description, unit_of_measure, color, price, qty, weight, cube, cw, gr, se, sw) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-//       [
-//         sku,
-//         description,
-//         item_type.toUpperCase(),
-//         search_description || null,
-//         unit_of_measure,
-//         color,
-//         price,
-//         qty,
-//         weight || null,
-//         cube || null,
-//         cw || null,
-//         gr || null,
-//         se || null,
-//         sw || null,
-//       ]
-//     );
-
-//     const [newItem] = await pool.query("SELECT * FROM items WHERE id = ?", [
-//       result.insertId,
-//     ]);
-//     res.status(201).json(newItem[0]);
-//   } catch (err) {
-//     console.error("Error creating item:", err);
-//     res.status(500).json({ error: "Failed to create item" });
-//   }
-// });
 
 app.post("/api/admin/items", adminauthenticateToken, async (req, res) => {
   try {
@@ -9604,62 +7531,6 @@ app.post("/api/admin/items", adminauthenticateToken, async (req, res) => {
   }
 });
 
-// app.put("/api/admin/items/:id", adminauthenticateToken, async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const {
-//       sku,
-//       description,
-//       item_type,
-//       unit_of_measure,
-//       color,
-//       price,
-//       qty,
-//       unitcost,
-//     } = req.body;
-
-//     // Validate required fields
-//     if (
-//       !sku ||
-//       !description ||
-//       !item_type ||
-//       !unit_of_measure ||
-//       !color ||
-//       price == null ||
-//       qty == null ||
-//       unitcost == null // Added unitcost validation
-//     ) {
-//       return res.status(400).json({
-//         error:
-//           "Missing required fields: sku, description, item_type, unit_of_measure, color, price, qty, unitcost",
-//       });
-//     }
-
-//     const [result] = await pool.query(
-//       "UPDATE items SET sku = ?, description = ?, item_type = ?, unit_of_measure = ?, color = ?, price = ?, qty = ?, unitcost = ?, updated_at = NOW() WHERE id = ?",
-//       [
-//         sku,
-//         description,
-//         item_type.toUpperCase(),
-//         unit_of_measure,
-//         color,
-//         price,
-//         qty,
-//         unitcost, // Added unitcost to query
-//         id,
-//       ]
-//     );
-
-//     if (result.affectedRows === 0) {
-//       return res.status(404).json({ error: "Item not found" });
-//     }
-
-//     res.json({ message: "Item updated successfully" });
-//   } catch (err) {
-//     console.error("Error updating item:", err);
-//     res.status(500).json({ error: "Failed to update item" });
-//   }
-// });
 
 app.put("/api/admin/items/:id", adminauthenticateToken, async (req, res) => {
   try {
@@ -9722,119 +7593,6 @@ app.delete("/api/admin/items/:id", adminauthenticateToken, async (req, res) => {
   }
 });
 
-// app.post("/api/admin/import-items", async (req, res) => {
-//   let connection;
-
-//   try {
-//     // Get a connection from the pool
-//     connection = await pool.getConnection();
-
-//     // Read Excel file (adjust file path as needed)
-//     const filePath = "SSC MASTER LIST.xlsx";
-
-//     const workbook = XLSX.readFile(filePath);
-//     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-//     const data = XLSX.utils.sheet_to_json(sheet);
-
-//     if (data.length === 0) {
-//       throw new Error("Excel file is empty or has no data rows");
-//     }
-
-//     console.log("Excel headers:", Object.keys(data[0]));
-
-//     let skippedRows = [];
-
-//     await connection.beginTransaction();
-
-//     for (const [index, item] of data.entries()) {
-//       // Normalize keys
-//       const itemKeys = Object.keys(item).reduce((acc, key) => {
-//         acc[key.toLowerCase().trim()] = item[key];
-//         return acc;
-//       }, {});
-
-//       // Map fields
-//       const sku = itemKeys["no"] ? String(itemKeys["no"]).trim() : null;
-//       const description = itemKeys["description"]
-//         ? String(itemKeys["description"]).trim()
-//         : null;
-//       const color = itemKeys["color"] ? String(itemKeys["color"]).trim() : null;
-//       const item_type = itemKeys["description 2"]
-//         ? String(itemKeys["description 2"]).trim()
-//         : "STAINED PLYWOOD";
-//       const search_description = itemKeys["item name"]
-//         ? String(itemKeys["item name"]).trim()
-//         : null;
-//       const unit_of_measure = itemKeys["base unit of measure"]
-//         ? String(itemKeys["base unit of measure"]).trim()
-//         : "Each";
-//       const price =
-//         itemKeys["unit price"] !== undefined
-//           ? parseFloat(itemKeys["unit price"])
-//           : null;
-//       const qty =
-//         itemKeys["qty"] !== undefined ? parseFloat(itemKeys["qty"]) : null;
-
-//       console.log(
-//         `Row ${index + 2}: SKU = ${sku}, Description = ${description}`
-//       );
-
-//       if (!sku || !description) {
-//         skippedRows.push({
-//           row: index + 2,
-//           item,
-//           reason: `Missing SKU or Description`,
-//         });
-//         continue;
-//       }
-
-//       await connection.query(
-//         `INSERT INTO items (
-//           sku, description, item_type, search_description, unit_of_measure, price, color,qty,
-//           weight, cube, cw, gr, se, sw
-//         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)`,
-//         [
-//           sku,
-//           description,
-//           item_type,
-//           search_description,
-//           unit_of_measure,
-//           price,
-//           color,
-//           qty,
-//           null,
-//           null,
-//           null,
-//           null,
-//           null,
-//           null,
-//         ]
-//       );
-//     }
-
-//     await connection.commit();
-
-//     res.json({
-//       message: "Data imported successfully",
-//       skippedRows,
-//     });
-//   } catch (err) {
-//     console.error("Error importing data:", err);
-//     if (connection) {
-//       await connection.rollback();
-//     }
-//     res
-//       .status(500)
-//       .json({ error: "Failed to import data", details: err.message });
-//   } finally {
-//     if (connection) {
-//       connection.release(); // Return connection to the pool
-//     }
-//   }
-// });
-
-// Endpoint to import items from uploaded Excel file
-
 const excelupload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10000000 }, // 10MB limit
@@ -9851,140 +7609,6 @@ const excelupload = multer({
   },
 });
 
-// app.post(
-//   "/api/admin/import-items",
-//   adminauthenticateToken,
-//   excelupload.single("file"),
-//   async (req, res) => {
-//     let connection;
-
-//     try {
-//       // Get database connection
-//       connection = await pool.getConnection();
-
-//       // Check if file was uploaded
-//       if (!req.file) {
-//         throw new Error("No Excel file was uploaded");
-//       }
-
-//       // Read Excel file from buffer
-//       const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-//       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-//       const data = XLSX.utils.sheet_to_json(sheet);
-
-//       if (data.length === 0) {
-//         throw new Error("Excel file is empty or has no data rows");
-//       }
-
-//       console.log("Excel headers:", Object.keys(data[0]));
-
-//       let skippedRows = [];
-
-//       try {
-//         await connection.beginTransaction();
-
-//         for (const [index, item] of data.entries()) {
-//           // Normalize keys to lowercase and trim
-//           const itemKeys = Object.keys(item).reduce((acc, key) => {
-//             acc[key.toLowerCase()] =
-//               typeof item[key] === "string" ? item[key].trim() : item[key];
-//             return acc;
-//           }, {});
-
-//           // Map fields to database columns
-//           const sku = itemKeys["no"] ? String(itemKeys["no"]).trim() : null;
-//           const description = itemKeys["description"]
-//             ? String(itemKeys["description"]).trim()
-//             : null;
-//           const color = itemKeys["color"]
-//             ? String(itemKeys["color"]).trim()
-//             : null;
-//           const item_type = itemKeys["description 2"]
-//             ? String(itemKeys["description 2"]).trim()
-//             : "STAINED ITEMS";
-//           const search_description = itemKeys["item name"]
-//             ? String(itemKeys["item name"]).trim()
-//             : null;
-//           const unit_of_measure = itemKeys["base unit of measure"]
-//             ? String(itemKeys["base unit of measure"]).trim()
-//             : "Each";
-//           const price =
-//             itemKeys["unit price"] !== undefined
-//               ? parseFloat(itemKeys["unit price"])
-//               : null;
-//           const unitcost =
-//             itemKeys["unit cost"] !== undefined
-//               ? parseFloat(itemKeys["unit cost"])
-//               : "0.00";
-//           const qty =
-//             itemKeys["qty"] !== undefined ? parseFloat(itemKeys["qty"]) : 0;
-
-//           console.log(
-//             `Row ${
-//               index + 2
-//             }: SKU=${sku}, Description=${description}, Color=${color}, Item Type=${item_type}, Search Description=${search_description}, Unit of Measure=${unit_of_measure}, Price=${price}, Qty=${qty}`
-//           );
-
-//           if (!sku || !description) {
-//             skippedRows.push({
-//               row: index + 2,
-//               item,
-//               reason: `Missing SKU or Description`,
-//             });
-//             continue;
-//           }
-
-//           // Insert into items table
-//           await connection.query(
-//             `INSERT INTO items (
-//             sku, description, item_type, search_description, unit_of_measure, price, color, qty,unitcost,
-//             weight, cube, cw, gr, se, sw
-//           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)`,
-//             [
-//               sku,
-//               description,
-//               item_type,
-//               search_description,
-//               unit_of_measure,
-//               price,
-//               color,
-//               qty,
-//               unitcost,
-//               null, // weight
-//               null, // cube
-//               null, // cw
-//               null, // gr
-//               null, // se
-//               null, // sw
-//             ]
-//           );
-//         }
-
-//         await connection.commit();
-
-//         res.json({
-//           message: "Data imported successfully",
-//           skippedRows,
-//         });
-//       } catch (err) {
-//         console.error("Error importing data:", err);
-//         if (connection) {
-//           await connection.rollback();
-//         }
-//         res
-//           .status(500)
-//           .json({ error: "Failed to import data", details: err.message });
-//       }
-//     } catch (error) {
-//       console.error("Error reading file or opening connection:", error.message);
-//       res.status(500).json({ error: error.message });
-//     } finally {
-//       if (connection) {
-//         connection.release();
-//       }
-//     }
-//   }
-// );
 
 app.post(
   "/api/admin/import-items",
@@ -10136,293 +7760,6 @@ app.delete("/api/admin/allitems", authenticateToken, async (req, res) => {
   }
 });
 
-// app.post("/api/admin/import-specialitems",
-//   adminauthenticateToken,
-//   excelupload.single("file"),
-//   async (req, res) => {
-//     let connection;
-
-//     try {
-//       // Get database connection
-//       connection = await pool.getConnection();
-
-//       // Check if file was uploaded
-//       if (!req.file) {
-//         throw new Error("No Excel file was uploaded");
-//       }
-
-//       // Read Excel file from buffer
-//       const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-//       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-//       const data = XLSX.utils.sheet_to_json(sheet);
-
-//       if (data.length === 0) {
-//         throw new Error("Excel file is empty or has no data rows");
-//       }
-
-//       console.log("Excel headers:", Object.keys(data[0]));
-
-//       let skippedRows = [];
-
-//       try {
-//         await connection.beginTransaction();
-
-//         for (const [index, item] of data.entries()) {
-//           // Normalize keys to lowercase and trim
-//           const itemKeys = Object.keys(item).reduce((acc, key) => {
-//             acc[key.toLowerCase()] =
-//               typeof item[key] === "string" ? item[key].trim() : item[key];
-//             return acc;
-//           }, {});
-
-//           // Map fields to database columns
-//           const sku = itemKeys["no"] ? String(itemKeys["no"]).trim() : null;
-//           const description = itemKeys["description"]
-//             ? String(itemKeys["description"]).trim()
-//             : null;
-//           const color = itemKeys["color"]
-//             ? String(itemKeys["color"]).trim()
-//             : null;
-//           const item_type = itemKeys["description 2"]
-//             ? String(itemKeys["description 2"]).trim()
-//             : "STAINED ITEMS";
-//           const search_description = itemKeys["item name"]
-//             ? String(itemKeys["item name"]).trim()
-//             : null;
-//           const unit_of_measure = itemKeys["base unit of measure"]
-//             ? String(itemKeys["base unit of measure"]).trim()
-//             : "Each";
-//           const price =
-//             itemKeys["unit price"] !== undefined
-//               ? parseFloat(itemKeys["unit price"])
-//               : null;
-//           const unitcost =
-//             itemKeys["unit cost"] !== undefined
-//               ? parseFloat(itemKeys["unit cost"])
-//               : "0.00";
-//           const qty =
-//             itemKeys["qty"] !== undefined ? parseFloat(itemKeys["qty"]) : 0;
-
-//           console.log(
-//             `Row ${
-//               index + 2
-//             }: SKU=${sku}, Description=${description}, Color=${color}, Item Type=${item_type}, Search Description=${search_description}, Unit of Measure=${unit_of_measure}, Price=${price}, Qty=${qty}`
-//           );
-
-//           if (!sku || !description) {
-//             skippedRows.push({
-//               row: index + 2,
-//               item,
-//               reason: `Missing SKU or Description`,
-//             });
-//             continue;
-//           }
-
-//           // Insert into items table
-//           await connection.query(
-//             `INSERT INTO specialitems (
-//             sku, description, item_type, search_description, unit_of_measure, price, color, qty,unitcost
-
-//           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-//             [
-//               sku,
-//               description,
-//               item_type,
-//               search_description,
-//               unit_of_measure,
-//               price,
-//               color,
-//               qty,
-//               unitcost,
-
-//             ]
-//           );
-//         }
-
-//         await connection.commit();
-
-//         res.json({
-//           message: "Data imported successfully",
-//           skippedRows,
-//         });
-//       } catch (err) {
-//         console.error("Error importing data:", err);
-//         if (connection) {
-//           await connection.rollback();
-//         }
-//         res
-//           .status(500)
-//           .json({ error: "Failed to import data", details: err.message });
-//       }
-//     } catch (error) {
-//       console.error("Error reading file or opening connection:", error.message);
-//       res.status(500).json({ error: error.message });
-//     } finally {
-//       if (connection) {
-//         connection.release();
-//       }
-//     }
-//   }
-// );
-
-// app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
-//   try {
-//     const { sku, item_type, color } = req.query;
-//     let query =
-//       "SELECT id, sku, description, item_type, search_description, unit_of_measure, price,  created_at, updated_at, color,qty,unitcost FROM specialitems WHERE 1=1";
-//     const params = [];
-
-//     if (sku) {
-//       query += " AND sku LIKE ?";
-//       params.push(`%${sku}%`);
-//     }
-//     if (item_type) {
-//       query += " AND item_type = ?";
-//       params.push(item_type.toUpperCase());
-//     }
-//     if (color) {
-//       query += " AND color = ?";
-//       params.push(color);
-//     }
-
-//     const [rows] = await pool.query(query, params);
-//     res.json(rows);
-//   } catch (err) {
-//     console.error("Error fetching items:", err);
-//     res.status(500).json({ error: "Failed to fetch items" });
-//   }
-// });
-
-// app.post("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
-//   try {
-//     const {
-//       sku,
-//       description,
-//       item_type,
-//       unit_of_measure,
-//       color,
-//       price,
-//       qty,
-//       unitcost, // Added unitcost
-//       search_description,
-
-//     } = req.body;
-
-//     // Validate required fields
-//     if (
-//       !sku ||
-//       !description ||
-//       !item_type ||
-//       !unit_of_measure ||
-//       !color ||
-//       price == null ||
-//       qty == null ||
-//       unitcost == null // Added unitcost validation
-//     ) {
-//       return res.status(400).json({
-//         error:
-//           "Missing required fields: sku, description, item_type, unit_of_measure, color, price, qty, unitcost",
-//       });
-//     }
-
-//     const [result] = await pool.query(
-//       "INSERT INTO specialitems (sku, description, item_type, search_description, unit_of_measure, color, price, qty, unitcost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-//       [
-//         sku,
-//         description,
-//         item_type.toUpperCase(),
-//         search_description || null,
-//         unit_of_measure,
-//         color,
-//         price,
-//         qty,
-//         unitcost, // Added unitcost to query
-
-//       ]
-//     );
-
-//     const [newItem] = await pool.query("SELECT * FROM specialitems WHERE id = ?", [
-//       result.insertId,
-//     ]);
-//     res.status(201).json(newItem[0]);
-//   } catch (err) {
-//     console.error("Error creating item:", err);
-//     res.status(500).json({ error: "Failed to create item" });
-//   }
-// });
-
-// app.delete("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const [result] = await pool.query("DELETE FROM specialitems WHERE id = ?", [id]);
-
-//     if (result.affectedRows === 0) {
-//       return res.status(404).json({ error: "Item not found" });
-//     }
-
-//     res.json({ message: "Item deleted successfully" });
-//   } catch (err) {
-//     console.error("Error deleting item:", err);
-//     res.status(500).json({ error: "Failed to delete item" });
-//   }
-// });
-
-// app.put("/api/admin/specialitems/:id", adminauthenticateToken, async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const {
-//       sku,
-//       description,
-//       item_type,
-//       unit_of_measure,
-//       color,
-//       price,
-//       qty,
-//       unitcost,
-//     } = req.body;
-
-//     // Validate required fields
-//     if (
-//       !sku ||
-//       !description ||
-//       !item_type ||
-//       !unit_of_measure ||
-//       !color ||
-//       price == null ||
-//       qty == null ||
-//       unitcost == null // Added unitcost validation
-//     ) {
-//       return res.status(400).json({
-//         error:
-//           "Missing required fields: sku, description, item_type, unit_of_measure, color, price, qty, unitcost",
-//       });
-//     }
-
-//     const [result] = await pool.query(
-//       "UPDATE specialitems SET sku = ?, description = ?, item_type = ?, unit_of_measure = ?, color = ?, price = ?, qty = ?, unitcost = ?, updated_at = NOW() WHERE id = ?",
-//       [
-//         sku,
-//         description,
-//         item_type.toUpperCase(),
-//         unit_of_measure,
-//         color,
-//         price,
-//         qty,
-//         unitcost, // Added unitcost to query
-//         id,
-//       ]
-//     );
-
-//     if (result.affectedRows === 0) {
-//       return res.status(404).json({ error: "Item not found" });
-//     }
-
-//     res.json({ message: "Item updated successfully" });
-//   } catch (err) {
-//     console.error("Error updating item:", err);
-//     res.status(500).json({ error: "Failed to update item" });
-//   }
-// });
 
 app.post(
   "/api/admin/import-specialitems",
@@ -12106,11 +9443,81 @@ app.put(
   }
 );
 
+// app.get("/api/admin/invoices", adminauthenticateToken, async (req, res) => {
+//   try {
+//     // Fetch all invoices with order details
+//     const [invoices] = await pool.query(
+//       `SELECT i.*, o.id AS order_internal_id, o.order_id, o.bill_to, o.account
+//        FROM invoices i
+//        LEFT JOIN orders o ON i.order_id = o.id`
+//     );
+
+//     // Fetch all order items for the invoices
+//     const orderIds = invoices
+//       .map((invoice) => invoice.order_internal_id)
+//       .filter((id) => id);
+//     let items = [];
+//     if (orderIds.length > 0) {
+//       const [orderItems] = await pool.query(
+//         `SELECT oi.order_id, oi.sku, oi.name, oi.quantity, oi.door_style, oi.finish, oi.price, oi.total_amount
+//          FROM order_items oi
+//          WHERE oi.order_id IN (?)`,
+//         [orderIds]
+//       );
+//       items = orderItems;
+//     }
+
+//     // Associate items with their respective invoices
+//     const invoicesWithItems = invoices.map((invoice) => ({
+//       id: invoice.id,
+//       invoice_number: invoice.invoice_number,
+//       order_id: invoice.order_id, // String order_id from orders table (e.g., "S-ORD101127")
+//       customer_id: invoice.user_id, // Map user_id to customer_id for frontend
+//       issue_date: invoice.issue_date,
+//       subtotal: parseFloat(invoice.subtotal) || 0,
+//       tax: parseFloat(invoice.tax) || 0,
+//       shipping: invoice.shipping !== null ? parseFloat(invoice.shipping) : null,
+//       discount: parseFloat(invoice.discount) || 0,
+//       additional_discount: parseFloat(invoice.additional_discount) || 0,
+//       total: parseFloat(invoice.total) || 0,
+//       items: items
+//         .filter((item) => item.order_id === invoice.order_internal_id)
+//         .map((item) => ({
+//           sku: item.sku,
+//           name: item.name,
+//           quantity: item.quantity,
+//           door_style: item.door_style || null,
+//           finish: item.finish || null,
+//           price: parseFloat(item.price) || 0,
+//           total_amount: parseFloat(item.total_amount) || 0,
+//         })),
+//       bill_to: invoice.bill_to || null,
+//       account: invoice.account || null,
+//       finish_type: invoice.finish_type || null,
+//       door_style: invoice.door_style || null,
+//     }));
+
+//     res.json(invoicesWithItems);
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// });
+
+
+
+
+
+
+
+// Get customer profile for invoice by customer_id
+
+
 app.get("/api/admin/invoices", adminauthenticateToken, async (req, res) => {
   try {
     // Fetch all invoices with order details
     const [invoices] = await pool.query(
-      `SELECT i.*, o.id AS order_internal_id, o.order_id, o.bill_to, o.account
+      `SELECT i.*, o.id AS order_internal_id, o.order_id, o.bill_to, o.account, o.door_style, o.finish_type
        FROM invoices i
        LEFT JOIN orders o ON i.order_id = o.id`
     );
@@ -12143,6 +9550,9 @@ app.get("/api/admin/invoices", adminauthenticateToken, async (req, res) => {
       discount: parseFloat(invoice.discount) || 0,
       additional_discount: parseFloat(invoice.additional_discount) || 0,
       total: parseFloat(invoice.total) || 0,
+      paid_at: invoice.paid_at || null,
+      payment_intent_id: invoice.payment_intent_id || null,
+      payment_status: invoice.payment_status || null,
       items: items
         .filter((item) => item.order_id === invoice.order_internal_id)
         .map((item) => ({
@@ -12167,7 +9577,9 @@ app.get("/api/admin/invoices", adminauthenticateToken, async (req, res) => {
   }
 });
 
-// Get customer profile for invoice by customer_id
+
+
+
 app.get("/api/invoice/profile", adminauthenticateToken, async (req, res) => {
   try {
     const { customer_id } = req.query;
@@ -12219,81 +9631,6 @@ app.get("/api/invoice/profile", adminauthenticateToken, async (req, res) => {
   }
 });
 
-// POST /api/admin/team
-// app.post(
-//   "/api/admin/team",
-//   adminauthenticateToken,
-//   upload.single("photo"),
-//   async (req, res) => {
-//     try {
-//       const { name, email, phone, position } = req.body;
-
-//       // Validate required fields
-//       if (!name || !email || !phone || !position) {
-//         return res
-//           .status(400)
-//           .json({ error: "Name, email, phone, and position are required" });
-//       }
-
-//       // Validate email format
-//       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-//       if (!emailRegex.test(email)) {
-//         return res.status(400).json({ error: "Invalid email format" });
-//       }
-
-//       // Validate phone format (basic check for digits and common characters)
-//       const phoneRegex = /^\+?[\d\s-]{8,20}$/;
-//       if (!phoneRegex.test(phone)) {
-//         return res.status(400).json({ error: "Invalid phone number format" });
-//       }
-
-//       // Check if email already exists
-//       const [existing] = await pool.query(
-//         `SELECT id FROM team_members WHERE email = ?`,
-//         [email]
-//       );
-//       if (existing.length > 0) {
-//         return res.status(400).json({ error: "Email already exists" });
-//       }
-
-//       const photoPath = req.file ? `/Uploads/${req.file.filename}` : null;
-
-//       // Insert new team member
-//       const [result] = await pool.query(
-//         `INSERT INTO team_members (name, email, phone, position, photo_path, created_at, updated_at)
-//          VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-//         [name, email, phone, position, photoPath]
-//       );
-
-//       // Retrieve the inserted team member
-//       const [newMember] = await pool.query(
-//         `SELECT * FROM team_members WHERE id = ?`,
-//         [result.insertId]
-//       );
-
-//       if (newMember.length === 0) {
-//         return res
-//           .status(500)
-//           .json({ error: "Failed to retrieve created team member" });
-//       }
-
-//       res.status(201).json({
-//         id: newMember[0].id,
-//         name: newMember[0].name,
-//         email: newMember[0].email,
-//         phone: newMember[0].phone,
-//         position: newMember[0].position,
-//         photo_path: newMember[0].photo_path
-//           ? `${req.protocol}://${req.get("host")}${newMember[0].photo_path}`
-//           : null,
-//         updated_at: new Date(newMember[0].updated_at).toISOString(),
-//       });
-//     } catch (err) {
-//       console.error("Server error:", err);
-//       res.status(500).json({ error: err.message || "Server error" });
-//     }
-//   }
-// );
 
 app.post(
   "/api/admin/team",
