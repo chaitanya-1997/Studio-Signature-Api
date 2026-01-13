@@ -7891,6 +7891,70 @@ app.post(
 );
 
 // Get special items with customer prices
+// app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
+//   try {
+//     const { customerId } = req.query;
+//     let query = `
+//       SELECT 
+//         si.id, si.sku, si.description, si.item_type, 
+//         si.search_description, si.unit_of_measure, 
+//         si.price as base_price, si.created_at, si.updated_at, 
+//         si.color, si.qty, si.unitcost,
+//         csip.price as customer_price,
+//         csip.unitcost as customer_unitcost,
+//         csip.customer_id
+//       FROM specialitems si
+//       LEFT JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
+//       WHERE 1=1`;
+
+//     const params = [];
+
+//     if (customerId) {
+//       query += " AND csip.customer_id = ?";
+//       params.push(customerId);
+//     }
+
+//     const [rows] = await pool.query(query, params);
+
+//     // Group by item and include customer prices
+//     const itemsMap = new Map();
+//     rows.forEach((row) => {
+//       if (!itemsMap.has(row.id)) {
+//         itemsMap.set(row.id, {
+//           id: row.id,
+//           sku: row.sku,
+//           description: row.description,
+//           item_type: row.item_type,
+//           search_description: row.search_description,
+//           unit_of_measure: row.unit_of_measure,
+//           price: row.base_price,
+//           color: row.color,
+//           qty: row.qty,
+//           unitcost: row.unitcost,
+//           created_at: row.created_at,
+//           updated_at: row.updated_at,
+//           customer_prices: [],
+//         });
+//       }
+
+//       if (row.customer_id) {
+//         itemsMap.get(row.id).customer_prices.push({
+//           customer_id: row.customer_id,
+//           price: row.customer_price,
+//           unitcost: row.customer_unitcost,
+//         });
+//       }
+//     });
+
+//     const items = Array.from(itemsMap.values());
+//     res.json(items);
+//   } catch (err) {
+//     console.error("Error fetching items:", err);
+//     res.status(500).json({ error: "Failed to fetch items" });
+//   }
+// });
+
+
 app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
   try {
     const { customerId } = req.query;
@@ -7899,9 +7963,9 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
         si.id, si.sku, si.description, si.item_type, 
         si.search_description, si.unit_of_measure, 
         si.price as base_price, si.created_at, si.updated_at, 
-        si.color, si.qty, si.unitcost,
+        si.color, si.qty, 
         csip.price as customer_price,
-        csip.unitcost as customer_unitcost,
+      
         csip.customer_id
       FROM specialitems si
       LEFT JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
@@ -7930,7 +7994,7 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
           price: row.base_price,
           color: row.color,
           qty: row.qty,
-          unitcost: row.unitcost,
+       
           created_at: row.created_at,
           updated_at: row.updated_at,
           customer_prices: [],
@@ -7941,7 +8005,7 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
         itemsMap.get(row.id).customer_prices.push({
           customer_id: row.customer_id,
           price: row.customer_price,
-          unitcost: row.customer_unitcost,
+       
         });
       }
     });
@@ -7955,10 +8019,150 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
 });
 
 // Create special item with customer prices - Only save in mapping table
-app.post(
-  "/api/admin/specialitems",
-  adminauthenticateToken,
-  async (req, res) => {
+// app.post(
+//   "/api/admin/specialitems",
+//   adminauthenticateToken,
+//   async (req, res) => {
+//     try {
+//       const {
+//         sku,
+//         description,
+//         item_type,
+//         unit_of_measure,
+//         color,
+//         price,
+//         qty,
+//         unitcost,
+//         search_description,
+//         customerPrices = [],
+//       } = req.body;
+
+//       // Validate required fields
+//       if (!sku || !description || !item_type || !unit_of_measure || !color) {
+//         return res.status(400).json({
+//           error: "Missing required fields.",
+//         });
+//       }
+
+//       // Start transaction
+//       const connection = await pool.getConnection();
+//       await connection.beginTransaction();
+
+//       try {
+//         // Insert into specialitems without price, qty, unitcost
+//         const [result] = await connection.query(
+//           `INSERT INTO specialitems 
+//          (sku, description, item_type, search_description, unit_of_measure, color) 
+//          VALUES (?, ?, ?, ?, ?, ?)`,
+//           [
+//             sku,
+//             description,
+//             item_type.toUpperCase(),
+//             search_description || null,
+//             unit_of_measure,
+//             color,
+//           ]
+//         );
+
+//         const newItemId = result.insertId;
+
+//         // Insert customer-price mappings if provided - This is where prices are saved
+//         if (Array.isArray(customerPrices) && customerPrices.length > 0) {
+//           const customerIdsToUpdate = new Set(); // Track unique customer IDs
+
+//           for (const cp of customerPrices) {
+//             // Validate that customer exists before inserting
+//             const [customerExists] = await connection.query(
+//               "SELECT id, special_cust FROM users WHERE id = ?",
+//               [cp.customerId]
+//             );
+
+//             if (customerExists.length === 0) {
+//               await connection.rollback();
+//               return res.status(400).json({
+//                 error: `Customer with ID ${cp.customerId} does not exist.`,
+//               });
+//             }
+
+//             // Add customer ID to update set
+//             customerIdsToUpdate.add(cp.customerId);
+
+//             await connection.query(
+//               `INSERT INTO customer_specialitem_prices 
+//              (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
+//              VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+//               [
+//                 cp.customerId,
+//                 newItemId,
+//                 cp.price || 0,
+//                 cp.unitcost || 0,
+//                 cp.qty || 0, // Use cp.qty from customerPrices
+//               ]
+//             );
+//           }
+
+//           // Update special_cust flag for customers (only if currently 0)
+//           if (customerIdsToUpdate.size > 0) {
+//             const customerIdsArray = Array.from(customerIdsToUpdate);
+//             await connection.query(
+//               `UPDATE users SET special_cust = 1, updated_at = NOW() 
+//              WHERE id IN (?) AND special_cust = 0`,
+//               [customerIdsArray]
+//             );
+//           }
+//         } else {
+//           // If no customer prices provided, just create the item without any price mappings
+//           console.log(
+//             "No customer prices provided, creating item without price mappings"
+//           );
+//         }
+
+//         await connection.commit();
+
+//         // Fetch complete item data with customer prices
+//         const [newItemRows] = await pool.query(
+//           `
+//         SELECT 
+//           si.*,
+//           JSON_ARRAYAGG(
+//             JSON_OBJECT(
+//               'customer_id', csip.customer_id,
+//               'price', csip.price,
+//               'unitcost', csip.unitcost,
+//               'qty', csip.qty
+//             )
+//           ) as customer_prices
+//         FROM specialitems si
+//         LEFT JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
+//         WHERE si.id = ?
+//         GROUP BY si.id
+//       `,
+//           [newItemId]
+//         );
+
+//         res.status(201).json({
+//           item: {
+//             ...newItemRows[0],
+//             customer_prices: newItemRows[0].customer_prices
+//               ? newItemRows[0].customer_prices.filter((cp) => cp.customer_id)
+//               : [],
+//           },
+//         });
+//       } catch (error) {
+//         await connection.rollback();
+//         throw error;
+//       } finally {
+//         connection.release();
+//       }
+//     } catch (err) {
+//       console.error("Error creating item:", err);
+//       res.status(500).json({ error: "Failed to create item" });
+//     }
+//   }
+// );
+
+
+app.post("/api/admin/specialitems",adminauthenticateToken,async (req, res) => {
     try {
       const {
         sku,
@@ -7968,7 +8172,7 @@ app.post(
         color,
         price,
         qty,
-        unitcost,
+       
         search_description,
         customerPrices = [],
       } = req.body;
@@ -7985,7 +8189,7 @@ app.post(
       await connection.beginTransaction();
 
       try {
-        // Insert into specialitems without price, qty, unitcost
+        // Insert into specialitems without price, qty
         const [result] = await connection.query(
           `INSERT INTO specialitems 
          (sku, description, item_type, search_description, unit_of_measure, color) 
@@ -8025,13 +8229,13 @@ app.post(
 
             await connection.query(
               `INSERT INTO customer_specialitem_prices 
-             (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+             (customer_id, specialitem_id, price, qty, created_at, updated_at)
+             VALUES (?, ?, ?, ?, NOW(), NOW())`,
               [
                 cp.customerId,
                 newItemId,
                 cp.price || 0,
-                cp.unitcost || 0,
+            
                 cp.qty || 0, // Use cp.qty from customerPrices
               ]
             );
@@ -8064,7 +8268,7 @@ app.post(
             JSON_OBJECT(
               'customer_id', csip.customer_id,
               'price', csip.price,
-              'unitcost', csip.unitcost,
+          
               'qty', csip.qty
             )
           ) as customer_prices
@@ -8305,6 +8509,119 @@ app.post(
 );
 
 // Update special item - Prices only in mapping table
+// app.put(
+//   "/api/admin/specialitems/:id",
+//   adminauthenticateToken,
+//   async (req, res) => {
+//     try {
+//       const id = req.params.id;
+//       const {
+//         sku,
+//         description,
+//         item_type,
+//         unit_of_measure,
+//         color,
+//         price,
+//         qty,
+//         unitcost,
+//         customerPrices = [],
+//         search_description,
+//       } = req.body;
+
+//       // Validate required fields
+//       if (!sku || !description || !item_type || !unit_of_measure || !color) {
+//         return res.status(400).json({
+//           error: "Missing required fields.",
+//         });
+//       }
+
+//       // Start transaction
+//       const connection = await pool.getConnection();
+//       await connection.beginTransaction();
+
+//       try {
+//         // Update specialitems record WITHOUT price, qty, unitcost
+//         const [result] = await connection.query(
+//           `UPDATE specialitems 
+//          SET sku=?, description=?, item_type=?, unit_of_measure=?, color=?, 
+//              search_description=?, updated_at=NOW()
+//          WHERE id=?`,
+//           [
+//             sku,
+//             description,
+//             item_type.toUpperCase(),
+//             unit_of_measure,
+//             color,
+//             search_description,
+//             id,
+//           ]
+//         );
+
+//         if (result.affectedRows === 0) {
+//           await connection.rollback();
+//           return res.status(404).json({ error: "Item not found" });
+//         }
+
+//         // Handle customer-specific prices
+//         if (Array.isArray(customerPrices) && customerPrices.length > 0) {
+//           console.log(
+//             `Updating ${customerPrices.length} specific customer price mappings for item ${id}`
+//           );
+
+//           // Update ONLY the specified customer mappings
+//           for (const cp of customerPrices) {
+//             // Validate that customer exists
+//             const [customerCheck] = await connection.query(
+//               "SELECT id FROM users WHERE id = ? AND user_type = 'customer'",
+//               [cp.customerId]
+//             );
+
+//             if (customerCheck.length > 0) {
+//               await connection.query(
+//                 `INSERT INTO customer_specialitem_prices 
+//                (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
+//                VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+//                ON DUPLICATE KEY UPDATE 
+//                price=VALUES(price), unitcost=VALUES(unitcost), qty=VALUES(qty), updated_at=NOW()`,
+//                 [
+//                   cp.customerId,
+//                   id,
+//                   parseFloat(cp.price) || 0,
+//                   parseFloat(cp.unitcost) || 0,
+//                   parseFloat(cp.qty) || 0,
+//                 ]
+//               );
+//               console.log(
+//                 `Updated price for customer ${cp.customerId}, item ${id}`
+//               );
+//             } else {
+//               console.warn(`Skipping invalid customer ID: ${cp.customerId}`);
+//             }
+//           }
+//         } else {
+//           // If no customerPrices provided, DO NOT update any customer mappings
+//           // Only update the main item details
+//           console.log(
+//             `No customer prices provided, only updating main item details for item ${id}`
+//           );
+//         }
+
+//         await connection.commit();
+//         res.json({ message: "Item updated successfully" });
+//       } catch (error) {
+//         await connection.rollback();
+//         console.error("Transaction error:", error);
+//         throw error;
+//       } finally {
+//         connection.release();
+//       }
+//     } catch (err) {
+//       console.error("Error updating item:", err);
+//       res.status(500).json({ error: "Failed to update item: " + err.message });
+//     }
+//   }
+// );
+
 app.put(
   "/api/admin/specialitems/:id",
   adminauthenticateToken,
@@ -8319,7 +8636,7 @@ app.put(
         color,
         price,
         qty,
-        unitcost,
+     
         customerPrices = [],
         search_description,
       } = req.body;
@@ -8336,7 +8653,7 @@ app.put(
       await connection.beginTransaction();
 
       try {
-        // Update specialitems record WITHOUT price, qty, unitcost
+        // Update specialitems record WITHOUT price, qty
         const [result] = await connection.query(
           `UPDATE specialitems 
          SET sku=?, description=?, item_type=?, unit_of_measure=?, color=?, 
@@ -8375,15 +8692,14 @@ app.put(
             if (customerCheck.length > 0) {
               await connection.query(
                 `INSERT INTO customer_specialitem_prices 
-               (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+               (customer_id, specialitem_id, price, qty, created_at, updated_at)
+                VALUES (?, ?, ?, ?, NOW(), NOW())
                ON DUPLICATE KEY UPDATE 
-               price=VALUES(price), unitcost=VALUES(unitcost), qty=VALUES(qty), updated_at=NOW()`,
+               price=VALUES(price),  qty=VALUES(qty), updated_at=NOW()`,
                 [
                   cp.customerId,
                   id,
                   parseFloat(cp.price) || 0,
-                  parseFloat(cp.unitcost) || 0,
                   parseFloat(cp.qty) || 0,
                 ]
               );
@@ -8417,7 +8733,66 @@ app.put(
     }
   }
 );
+
 // Get special items with customer prices
+// app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
+//   try {
+//     const { customerId } = req.query;
+
+//     let query;
+//     let params = [];
+
+//     if (customerId) {
+//       // Get items with customer-specific prices from mapping table
+//       query = `
+//         SELECT 
+//           si.id, si.sku, si.description, si.item_type, 
+//           si.search_description, si.unit_of_measure, 
+//           si.color, si.created_at, si.updated_at,
+//           csip.price,
+//           csip.unitcost,
+//           csip.qty,
+//           csip.customer_id
+//         FROM specialitems si
+//         INNER JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
+//         WHERE csip.customer_id = ?
+//         ORDER BY si.sku
+//       `;
+//       params = [customerId];
+//     } else {
+//       // Get all items with their customer prices
+//       query = `
+//         SELECT 
+//           si.id, si.sku, si.description, si.item_type, 
+//           si.search_description, si.unit_of_measure, 
+//           si.color, si.created_at, si.updated_at,
+//           JSON_ARRAYAGG(
+//             JSON_OBJECT(
+//               'customer_id', csip.customer_id,
+//               'price', csip.price,
+//               'unitcost', csip.unitcost,
+//               'qty', csip.qty
+//             )
+//           ) as customer_prices
+//         FROM specialitems si
+//         LEFT JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
+//         GROUP BY si.id
+//         ORDER BY si.sku
+//       `;
+//     }
+
+//     const [rows] = await pool.query(query, params);
+//     res.json(rows);
+//   } catch (err) {
+//     console.error("Error fetching items:", err);
+//     res.status(500).json({
+//       error: "Failed to fetch items",
+//       details: err.message,
+//     });
+//   }
+// });
+
+
 app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
   try {
     const { customerId } = req.query;
@@ -8433,7 +8808,7 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
           si.search_description, si.unit_of_measure, 
           si.color, si.created_at, si.updated_at,
           csip.price,
-          csip.unitcost,
+         
           csip.qty,
           csip.customer_id
         FROM specialitems si
@@ -8453,7 +8828,7 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
             JSON_OBJECT(
               'customer_id', csip.customer_id,
               'price', csip.price,
-              'unitcost', csip.unitcost,
+            
               'qty', csip.qty
             )
           ) as customer_prices
@@ -8475,7 +8850,41 @@ app.get("/api/admin/specialitems", adminauthenticateToken, async (req, res) => {
   }
 });
 
+
+
 // Get items for specific customer
+// app.get(
+//   "/api/admin/customer/:customerId/specialitems",
+//   adminauthenticateToken,
+//   async (req, res) => {
+//     try {
+//       const { customerId } = req.params;
+
+//       const [rows] = await pool.query(
+//         `
+//       SELECT 
+//         si.id, si.sku, si.description, si.item_type, 
+//         si.unit_of_measure, si.color, 
+//         csip.price,
+//         csip.qty,
+//         csip.unitcost,
+//         si.created_at, si.updated_at
+//       FROM specialitems si
+//       INNER JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
+//       WHERE csip.customer_id = ?
+//       ORDER BY si.sku
+//     `,
+//         [customerId]
+//       );
+
+//       res.json(rows);
+//     } catch (err) {
+//       console.error("Error fetching customer items:", err);
+//       res.status(500).json({ error: "Failed to fetch customer items" });
+//     }
+//   }
+// );
+
 app.get(
   "/api/admin/customer/:customerId/specialitems",
   adminauthenticateToken,
@@ -8490,7 +8899,7 @@ app.get(
         si.unit_of_measure, si.color, 
         csip.price,
         csip.qty,
-        csip.unitcost,
+      
         si.created_at, si.updated_at
       FROM specialitems si
       INNER JOIN customer_specialitem_prices csip ON si.id = csip.specialitem_id
@@ -8507,7 +8916,143 @@ app.get(
     }
   }
 );
+
 // Bulk import customer-item prices
+// app.post(
+//   "/api/admin/customer-specialitem-prices/bulk",
+//   adminauthenticateToken,
+//   async (req, res) => {
+//     try {
+//       const { customerIds, items } = req.body;
+
+//       // ENHANCED DEBUGGING
+//       console.log("=== BACKEND: BULK IMPORT REQUEST ===");
+//       console.log("Customer IDs:", customerIds);
+//       console.log("Number of items:", items.length);
+
+//       // Log ALL items with their prices
+//       console.log("ALL ITEMS WITH PRICES:");
+//       items.forEach((item, index) => {
+//         console.log(
+//           `Item ${index}: ${item.sku} | Price: ${item.price} | UnitCost: ${item.unitcost}`
+//         );
+//       });
+
+//       if (
+//         !customerIds ||
+//         !Array.isArray(customerIds) ||
+//         customerIds.length === 0
+//       ) {
+//         return res.status(400).json({ error: "Customer IDs are required" });
+//       }
+
+//       if (!items || !Array.isArray(items) || items.length === 0) {
+//         return res.status(400).json({ error: "Items are required" });
+//       }
+
+//       const connection = await pool.getConnection();
+//       await connection.beginTransaction();
+
+//       try {
+//         const allCustomerIdsToUpdate = new Set(customerIds);
+
+//         for (const itemData of items) {
+//           const {
+//             sku,
+//             description,
+//             item_type,
+//             unit_of_measure,
+//             color,
+//             price,
+//             qty,
+//             unitcost,
+//           } = itemData;
+
+//           // BACKEND DEBUG: Log each item being processed
+//           console.log(`BACKEND Processing: ${sku}`, {
+//             price: price,
+//             unitcost: unitcost,
+//             qty: qty,
+//           });
+
+//           // Check if item exists
+//           let [existingItems] = await connection.query(
+//             "SELECT id FROM specialitems WHERE sku = ?",
+//             [sku]
+//           );
+
+//           let specialItemId;
+//           if (existingItems.length > 0) {
+//             specialItemId = existingItems[0].id;
+//             console.log(
+//               `Using existing item ID ${specialItemId} for SKU: ${sku}`
+//             );
+//           } else {
+//             const [insertResult] = await connection.query(
+//               `INSERT INTO specialitems 
+//              (sku, description, item_type, unit_of_measure, color, created_at, updated_at)
+//              VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+//               [sku, description, item_type, unit_of_measure, color]
+//             );
+//             specialItemId = insertResult.insertId;
+//             console.log(`Created new item ID ${specialItemId} for SKU: ${sku}`);
+//           }
+
+//           // Create/update customer price mappings
+//           for (const customerId of customerIds) {
+//             console.log(
+//               `BACKEND Setting prices for customer ${customerId}, item ${specialItemId}:`,
+//               {
+//                 price: price,
+//                 unitcost: unitcost,
+//                 qty: qty,
+//               }
+//             );
+
+//             await connection.query(
+//               `INSERT INTO customer_specialitem_prices 
+//              (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
+//              VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+//              ON DUPLICATE KEY UPDATE 
+//              price=VALUES(price), unitcost=VALUES(unitcost), qty=VALUES(qty), updated_at=NOW()`,
+//               [customerId, specialItemId, price || 0, unitcost || 0, qty || 0]
+//             );
+//           }
+//         }
+
+//         // Update special_cust flag
+//         if (allCustomerIdsToUpdate.size > 0) {
+//           const customerIdsArray = Array.from(allCustomerIdsToUpdate);
+//           await connection.query(
+//             `UPDATE users SET special_cust = 1, updated_at = NOW() 
+//            WHERE id IN (?) AND special_cust = 0`,
+//             [customerIdsArray]
+//           );
+//         }
+
+//         await connection.commit();
+//         res.json({
+//           message: "Bulk import completed successfully",
+//           details: {
+//             customersProcessed: customerIds.length,
+//             itemsProcessed: items.length,
+//             totalMappings: customerIds.length * items.length,
+//           },
+//         });
+//       } catch (error) {
+//         await connection.rollback();
+//         console.error("Transaction error in bulk import:", error);
+//         throw error;
+//       } finally {
+//         connection.release();
+//       }
+//     } catch (err) {
+//       console.error("Bulk import error:", err);
+//       res.status(500).json({ error: "Failed to import data: " + err.message });
+//     }
+//   }
+// );
+
 app.post(
   "/api/admin/customer-specialitem-prices/bulk",
   adminauthenticateToken,
@@ -8524,7 +9069,7 @@ app.post(
       console.log("ALL ITEMS WITH PRICES:");
       items.forEach((item, index) => {
         console.log(
-          `Item ${index}: ${item.sku} | Price: ${item.price} | UnitCost: ${item.unitcost}`
+          `Item ${index}: ${item.sku} | Price: ${item.price} `
         );
       });
 
@@ -8555,13 +9100,13 @@ app.post(
             color,
             price,
             qty,
-            unitcost,
+       
           } = itemData;
 
           // BACKEND DEBUG: Log each item being processed
           console.log(`BACKEND Processing: ${sku}`, {
             price: price,
-            unitcost: unitcost,
+          
             qty: qty,
           });
 
@@ -8581,7 +9126,7 @@ app.post(
             const [insertResult] = await connection.query(
               `INSERT INTO specialitems 
              (sku, description, item_type, unit_of_measure, color, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+              VALUES (?, ?, ?, ?,?, NOW(), NOW())`,
               [sku, description, item_type, unit_of_measure, color]
             );
             specialItemId = insertResult.insertId;
@@ -8594,18 +9139,18 @@ app.post(
               `BACKEND Setting prices for customer ${customerId}, item ${specialItemId}:`,
               {
                 price: price,
-                unitcost: unitcost,
+               
                 qty: qty,
               }
             );
 
             await connection.query(
               `INSERT INTO customer_specialitem_prices 
-             (customer_id, specialitem_id, price, unitcost, qty, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+             (customer_id, specialitem_id, price, qty, created_at, updated_at)
+              VALUES (?, ?, ?, ?, NOW(), NOW())
              ON DUPLICATE KEY UPDATE 
-             price=VALUES(price), unitcost=VALUES(unitcost), qty=VALUES(qty), updated_at=NOW()`,
-              [customerId, specialItemId, price || 0, unitcost || 0, qty || 0]
+             price=VALUES(price), qty=VALUES(qty), updated_at=NOW()`,
+              [customerId, specialItemId, price ||  0, qty || 0]
             );
           }
         }
@@ -8642,7 +9187,59 @@ app.post(
     }
   }
 );
+
+
 // Delete all mappings for a specific customer - Update special_cust flag to 0
+// app.delete(
+//   "/api/admin/customer-specialitem-prices/all",
+//   adminauthenticateToken,
+//   async (req, res) => {
+//     try {
+//       const { customerId } = req.query;
+
+//       if (!customerId) {
+//         return res.status(400).json({ error: "Customer ID is required" });
+//       }
+
+//       const connection = await pool.getConnection();
+//       await connection.beginTransaction();
+
+//       try {
+//         // First delete all customer price mappings
+//         const [result] = await connection.query(
+//           "DELETE FROM customer_specialitem_prices WHERE customer_id = ?",
+//           [customerId]
+//         );
+
+//         // Update special_cust flag to 0 in users table since all mappings are deleted
+//         await connection.query(
+//           "UPDATE users SET special_cust = 0, updated_at = NOW() WHERE id = ?",
+//           [customerId]
+//         );
+
+//         await connection.commit();
+
+//         res.json({
+//           message: `Deleted ${result.affectedRows} price mappings for customer ${customerId} and updated special_cust flag to 0`,
+//           deletedCount: result.affectedRows,
+//           specialCustUpdated: true,
+//         });
+//       } catch (error) {
+//         await connection.rollback();
+//         throw error;
+//       } finally {
+//         connection.release();
+//       }
+//     } catch (err) {
+//       console.error("Error deleting customer price mappings:", err);
+//       res
+//         .status(500)
+//         .json({ error: "Failed to delete customer price mappings" });
+//     }
+//   }
+// );
+
+
 app.delete(
   "/api/admin/customer-specialitem-prices/all",
   adminauthenticateToken,
@@ -8692,7 +9289,43 @@ app.delete(
   }
 );
 
+
 // Delete specific customer price mapping - DO NOT update special_cust flag
+// app.delete(
+//   "/api/admin/customer-specialitem-prices",
+//   adminauthenticateToken,
+//   async (req, res) => {
+//     try {
+//       const { customerId, specialitemId } = req.query;
+
+//       if (!customerId || !specialitemId) {
+//         return res
+//           .status(400)
+//           .json({ error: "Customer ID and Item ID are required" });
+//       }
+
+//       const [result] = await pool.query(
+//         "DELETE FROM customer_specialitem_prices WHERE customer_id = ? AND specialitem_id = ?",
+//         [customerId, specialitemId]
+//       );
+
+//       if (result.affectedRows === 0) {
+//         return res
+//           .status(404)
+//           .json({ error: "Customer price mapping not found" });
+//       }
+
+//       res.json({
+//         message: "Customer price mapping deleted successfully",
+//         specialCustUpdated: false, // Explicitly state no flag update
+//       });
+//     } catch (err) {
+//       console.error("Error deleting customer price:", err);
+//       res.status(500).json({ error: "Failed to delete customer price" });
+//     }
+//   }
+// );
+
 app.delete(
   "/api/admin/customer-specialitem-prices",
   adminauthenticateToken,
@@ -8729,6 +9362,79 @@ app.delete(
 );
 
 // Delete special item and all its mappings - Check and update special_cust flags if needed
+// app.delete(
+//   "/api/admin/specialitems/:id",
+//   adminauthenticateToken,
+//   async (req, res) => {
+//     try {
+//       const { id } = req.params;
+
+//       const connection = await pool.getConnection();
+//       await connection.beginTransaction();
+
+//       try {
+//         // First get all customer IDs that have mappings for this item
+//         const [customerMappings] = await connection.query(
+//           "SELECT DISTINCT customer_id FROM customer_specialitem_prices WHERE specialitem_id = ?",
+//           [id]
+//         );
+
+//         // Then delete customer price mappings
+//         const [mappingResult] = await connection.query(
+//           "DELETE FROM customer_specialitem_prices WHERE specialitem_id = ?",
+//           [id]
+//         );
+
+//         // Then delete the item
+//         const [itemResult] = await connection.query(
+//           "DELETE FROM specialitems WHERE id = ?",
+//           [id]
+//         );
+
+//         if (itemResult.affectedRows === 0) {
+//           await connection.rollback();
+//           return res.status(404).json({ error: "Item not found" });
+//         }
+
+//         // For each customer that had mappings for this item, check if they have any remaining mappings
+//         // If no remaining mappings, set special_cust = 0
+//         let specialCustUpdates = 0;
+//         for (const mapping of customerMappings) {
+//           const [remainingMappings] = await connection.query(
+//             "SELECT COUNT(*) as count FROM customer_specialitem_prices WHERE customer_id = ?",
+//             [mapping.customer_id]
+//           );
+
+//           if (remainingMappings[0].count === 0) {
+//             // No more mappings for this customer, update special_cust to 0
+//             await connection.query(
+//               "UPDATE users SET special_cust = 0, updated_at = NOW() WHERE id = ?",
+//               [mapping.customer_id]
+//             );
+//             specialCustUpdates++;
+//           }
+//         }
+
+//         await connection.commit();
+//         res.json({
+//           message: "Item and all customer mappings deleted successfully",
+//           mappingsDeleted: mappingResult.affectedRows,
+//           specialCustUpdates: specialCustUpdates,
+//         });
+//       } catch (error) {
+//         await connection.rollback();
+//         throw error;
+//       } finally {
+//         connection.release();
+//       }
+//     } catch (err) {
+//       console.error("Error deleting item:", err);
+//       res.status(500).json({ error: "Failed to delete item" });
+//     }
+//   }
+// );
+
+
 app.delete(
   "/api/admin/specialitems/:id",
   adminauthenticateToken,
@@ -8800,6 +9506,8 @@ app.delete(
     }
   }
 );
+
+
 
 app.post(
   "/api/admin/products",
