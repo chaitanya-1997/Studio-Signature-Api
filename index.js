@@ -1974,12 +1974,176 @@ app.post("/api/create-payment-intent", authenticateToken, async (req, res) => {
 // });
 
 
+// app.post("/api/orders/:id/pay", authenticateToken, async (req, res) => {
+//   try {
+//     const { id } = req.params; // S-ORD101358
+//     const { paymentIntentId } = req.body;
+
+//     // 1️⃣ Retrieve Stripe payment
+//     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+//     if (
+//       !["succeeded", "processing", "requires_capture"].includes(
+//         paymentIntent.status
+//       )
+//     ) {
+//       return res.status(400).json({
+//         error: "Payment not completed",
+//         status: paymentIntent.status,
+//       });
+//     }
+
+//     const paidAmount = paymentIntent.amount / 100;
+//     const paymentMethod =
+//       paymentIntent.payment_method_types?.[0]?.toUpperCase() || "CARD";
+
+//     // 2️⃣ Update order payment info
+//     const [result] = await pool.query(
+//       `UPDATE orders
+//        SET payment_status = 'Paid',
+//            payment_intent_id = ?,
+//            paid_amount = ?,
+//            paid_at = NOW()
+//        WHERE order_id = ?`,
+//       [paymentIntentId, paidAmount, id]
+//     );
+
+//     if (result.affectedRows === 0) {
+//       return res.status(404).json({
+//         error: "Order not found",
+//         order_id: id,
+//       });
+//     }
+
+//     // 3️⃣ Fetch order + user details
+//     const [orderRows] = await pool.query(
+//       `SELECT 
+//         o.order_id,
+//         o.total,
+//         o.po_number,
+//         o.paid_at,
+//         u.full_name,
+//         u.email,
+//         u.phone
+//        FROM orders o
+//        JOIN users u ON o.user_id = u.id
+//        WHERE o.order_id = ?`,
+//       [id]
+//     );
+
+//     const order = orderRows[0];
+
+//     // ================================
+//     // 📧 EMAIL TEMPLATES
+//     // ================================
+
+//     const paymentDetailsHtml = `
+//       <table style="width:100%; border-collapse:collapse;">
+//         <tr><td><strong>Order ID</strong></td><td>${order.order_id}</td></tr>
+//         ${
+//           order.po_number
+//             ? `<tr><td><strong>PO Number</strong></td><td>${order.po_number}</td></tr>`
+//             : ""
+//         }
+//         <tr><td><strong>Paid Amount</strong></td><td>$${paidAmount.toFixed(
+//           2
+//         )}</td></tr>
+//         <tr><td><strong>Payment Method</strong></td><td>${paymentMethod}</td></tr>
+//         <tr><td><strong>Payment ID</strong></td><td>${paymentIntentId}</td></tr>
+//         <tr><td><strong>Paid On</strong></td><td>${new Date(
+//           order.paid_at
+//         ).toLocaleString()}</td></tr>
+//         <tr><td><strong>Order Total</strong></td><td>$${parseFloat(
+//           order.total
+//         ).toFixed(2)}</td></tr>
+//       </table>
+//     `;
+
+//     // 📩 USER EMAIL
+//     const userMailOptions = {
+//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//       to: order.email,
+//       subject: `Payment Received - ${order.order_id}`,
+//       html: `
+//         <div style="font-family:Arial; max-width:600px; margin:auto;">
+//           <h2 style="color:#2e7d32;">Payment Successful 🎉</h2>
+//           <p>Hi <strong>${order.full_name}</strong>,</p>
+//           <p>We have successfully received your payment for order <strong>${
+//             order.order_id
+//           }</strong>.</p>
+
+//           <h3>Payment Details</h3>
+//           ${paymentDetailsHtml}
+
+//           <p style="margin-top:20px;">
+//             Thank you for choosing <strong>Studio Signature Cabinets</strong>.
+//             If you have any questions, feel free to contact us.
+//           </p>
+
+//           <p style="font-size:12px; color:#777;">
+//             This is an automated confirmation email.
+//           </p>
+//         </div>
+//       `,
+//     };
+
+//     // 📩 ADMIN EMAIL
+//     const adminMailOptions = {
+//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//       to: "sjingle@studiosignaturecabinets.com",
+    
+    
+//       subject: `Payment Completed - ${order.order_id}`,
+//       html: `
+//         <div style="font-family:Arial; max-width:600px; margin:auto;">
+//           <h2 style="color:#1565c0;">Payment Completed</h2>
+
+//           <p>
+//             Payment has been successfully completed for order
+//             <strong>${order.order_id}</strong>.
+//           </p>
+
+//           <p><strong>Customer:</strong> ${order.full_name} (${order.email})</p>
+//           <p><strong>Phone:</strong> ${order.phone || "N/A"}</p>
+
+//           <h3>Payment Details</h3>
+//           ${paymentDetailsHtml}
+//         </div>
+//       `,
+//     };
+
+//     // 4️⃣ Send emails
+//     try {
+//       await Promise.all([
+//         transporter.sendMail(userMailOptions),
+//         transporter.sendMail(adminMailOptions),
+//       ]);
+//       console.log("Payment confirmation emails sent:", id);
+//     } catch (mailErr) {
+//       console.error("Payment email error:", mailErr);
+//     }
+
+//     // 5️⃣ Response
+//     res.json({
+//       message: "Payment recorded and confirmation emails sent",
+//       order_id: id,
+//       payment_status: "Paid",
+//       paid_amount: paidAmount,
+//       payment_method: paymentMethod,
+//     });
+//   } catch (err) {
+//     console.error("Payment update error:", err);
+//     res.status(500).json({ error: err.message });
+//   }
+// });
+
+
 app.post("/api/orders/:id/pay", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params; // S-ORD101358
     const { paymentIntentId } = req.body;
 
-    // 1️⃣ Retrieve Stripe payment
+    // 1️⃣ Retrieve Stripe payment intent
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (
@@ -1994,18 +2158,45 @@ app.post("/api/orders/:id/pay", authenticateToken, async (req, res) => {
     }
 
     const paidAmount = paymentIntent.amount / 100;
-    const paymentMethod =
-      paymentIntent.payment_method_types?.[0]?.toUpperCase() || "CARD";
+
+    // =====================================================
+    // ✅ REAL PAYMENT METHOD DETECTION FROM STRIPE
+    // =====================================================
+
+    // Retrieve actual payment method object
+    const paymentMethodObj = await stripe.paymentMethods.retrieve(
+      paymentIntent.payment_method
+    );
+
+    let detectedMethod = paymentMethodObj.type; // card | us_bank_account | etc
+
+    // If CARD → store brand
+    if (paymentMethodObj.type === "card") {
+      detectedMethod = paymentMethodObj.card.brand; // visa | mastercard | amex
+    }
+
+    // If ACH
+    if (paymentMethodObj.type === "us_bank_account") {
+      detectedMethod = "ach";
+    }
+
+    // Fallback safety
+    if (!detectedMethod) {
+      detectedMethod = "unknown";
+    }
+
+    console.log("Detected Payment Method:", detectedMethod);
 
     // 2️⃣ Update order payment info
     const [result] = await pool.query(
       `UPDATE orders
        SET payment_status = 'Paid',
            payment_intent_id = ?,
+           payment_method = ?,     -- ✅ STORE REAL METHOD
            paid_amount = ?,
            paid_at = NOW()
        WHERE order_id = ?`,
-      [paymentIntentId, paidAmount, id]
+      [paymentIntentId, detectedMethod, paidAmount, id]
     );
 
     if (result.affectedRows === 0) {
@@ -2022,6 +2213,7 @@ app.post("/api/orders/:id/pay", authenticateToken, async (req, res) => {
         o.total,
         o.po_number,
         o.paid_at,
+        o.payment_method,
         u.full_name,
         u.email,
         u.phone
@@ -2048,7 +2240,7 @@ app.post("/api/orders/:id/pay", authenticateToken, async (req, res) => {
         <tr><td><strong>Paid Amount</strong></td><td>$${paidAmount.toFixed(
           2
         )}</td></tr>
-        <tr><td><strong>Payment Method</strong></td><td>${paymentMethod}</td></tr>
+        <tr><td><strong>Payment Method</strong></td><td>${detectedMethod.toUpperCase()}</td></tr>
         <tr><td><strong>Payment ID</strong></td><td>${paymentIntentId}</td></tr>
         <tr><td><strong>Paid On</strong></td><td>${new Date(
           order.paid_at
@@ -2068,20 +2260,14 @@ app.post("/api/orders/:id/pay", authenticateToken, async (req, res) => {
         <div style="font-family:Arial; max-width:600px; margin:auto;">
           <h2 style="color:#2e7d32;">Payment Successful 🎉</h2>
           <p>Hi <strong>${order.full_name}</strong>,</p>
-          <p>We have successfully received your payment for order <strong>${
-            order.order_id
-          }</strong>.</p>
+          <p>We have successfully received your payment for order 
+             <strong>${order.order_id}</strong>.</p>
 
           <h3>Payment Details</h3>
           ${paymentDetailsHtml}
 
           <p style="margin-top:20px;">
             Thank you for choosing <strong>Studio Signature Cabinets</strong>.
-            If you have any questions, feel free to contact us.
-          </p>
-
-          <p style="font-size:12px; color:#777;">
-            This is an automated confirmation email.
           </p>
         </div>
       `,
@@ -2091,8 +2277,6 @@ app.post("/api/orders/:id/pay", authenticateToken, async (req, res) => {
     const adminMailOptions = {
       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
       to: "sjingle@studiosignaturecabinets.com",
-    
-    
       subject: `Payment Completed - ${order.order_id}`,
       html: `
         <div style="font-family:Arial; max-width:600px; margin:auto;">
@@ -2123,19 +2307,21 @@ app.post("/api/orders/:id/pay", authenticateToken, async (req, res) => {
       console.error("Payment email error:", mailErr);
     }
 
-    // 5️⃣ Response
+    // 5️⃣ API Response
     res.json({
-      message: "Payment recorded and confirmation emails sent",
+      message: "Payment recorded successfully",
       order_id: id,
       payment_status: "Paid",
+      payment_method: detectedMethod,
       paid_amount: paidAmount,
-      payment_method: paymentMethod,
     });
   } catch (err) {
     console.error("Payment update error:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
+
 
 
 
@@ -5111,6 +5297,7 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
         o.paid_at,
         o.payment_status,
         o.payment_intent_id,
+        o.payment_method,
         GROUP_CONCAT(
           JSON_OBJECT(
             'sku', oi.sku,
@@ -5180,6 +5367,7 @@ app.get("/api/admin/orders", adminauthenticateToken, async (req, res) => {
         paid_at: order.paid_at ? new Date(order.paid_at).toISOString() : null,
         payment_status: order.payment_status,
         payment_intent_id: order.payment_intent_id,
+payment_method: order.payment_method || null,
 
         items: parsedItems,
         door_style: order.door_style,
@@ -5227,10 +5415,11 @@ app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
         o.created_at AS createdAt,
         o.po_number,
         o.jobsite_address,
-        o.requested_delivery_date,          -- 🆕 added
+        o.requested_delivery_date,        
         o.paid_at,
         o.payment_status,
-        o.payment_intent_id
+        o.payment_intent_id,
+        o.payment_method  
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
       WHERE o.id = ?
@@ -5311,6 +5500,8 @@ app.get("/api/admin/orders/:id", adminauthenticateToken, async (req, res) => {
         paid_at: order.paid_at ? new Date(order.paid_at).toISOString() : null,
         payment_status: order.payment_status,
         payment_intent_id: order.payment_intent_id,
+payment_method: order.payment_method || null,
+
 
         items: items || [],
       },
@@ -6743,6 +6934,265 @@ app.put("/api/admin/orders/:id/status",
     }
   }
 );
+
+// app.put(
+//   "/api/admin/orders/:id/payment",
+//   adminauthenticateToken,
+//   async (req, res) => {
+//     const { id } = req.params;
+//     const { payment_status, payment_method } = req.body;
+//     let connection;
+
+//     // ✅ Validate payment_status
+//     if (!["Paid", "Unpaid"].includes(payment_status)) {
+//       return res.status(400).json({
+//         error: "payment_status must be Paid or Unpaid",
+//       });
+//     }
+
+//     // ✅ Validate payment_method if Paid
+//     if (payment_status === "Paid" && !payment_method) {
+//       return res.status(400).json({
+//         error: "payment_method is required when marking Paid",
+//       });
+//     }
+
+//     try {
+//       connection = await pool.getConnection();
+//       await connection.beginTransaction();
+
+//       // ✅ Check order exists
+//       const [orders] = await connection.query(
+//         `SELECT id, payment_status FROM orders WHERE id = ?`,
+//         [id]
+//       );
+
+//       if (!orders.length) {
+//         await connection.rollback();
+//         return res.status(404).json({ error: "Order not found" });
+//       }
+
+//       // ✅ Prevent duplicate payment update
+//       if (
+//         orders[0].payment_status === "Paid" &&
+//         payment_status === "Paid"
+//       ) {
+//         await connection.rollback();
+//         return res.status(400).json({
+//           error: "Order is already marked as Paid",
+//         });
+//       }
+
+//       // ✅ Build update query dynamically
+//       let updateQuery = `
+//         UPDATE orders
+//         SET payment_status = ?,
+//             payment_method = ?,
+//             paid_at = ?
+//         WHERE id = ?
+//       `;
+
+//       const paidAt =
+//         payment_status === "Paid" ? new Date() : null;
+
+//       const params = [
+//         payment_status,
+//         payment_method || null,
+//         paidAt,
+//         id,
+//       ];
+
+//       await connection.query(updateQuery, params);
+
+//       await connection.commit();
+
+//       res.json({
+//         message: "Payment status updated successfully",
+//         order_id: id,
+//         payment_status,
+//         payment_method: payment_method || null,
+//         paid_at: paidAt,
+//       });
+//     } catch (err) {
+//       if (connection) await connection.rollback();
+//       console.error("Payment update error:", err);
+//       res.status(500).json({ error: "Server error" });
+//     } finally {
+//       if (connection) connection.release();
+//     }
+//   }
+// );
+
+app.put(
+  "/api/admin/orders/:id/payment",
+  adminauthenticateToken,
+  async (req, res) => {
+    const { id } = req.params;
+    const { payment_status, payment_method } = req.body;
+    let connection;
+
+    // ✅ Validate payment_status
+    if (!["Paid", "Unpaid"].includes(payment_status)) {
+      return res.status(400).json({
+        error: "payment_status must be Paid or Unpaid",
+      });
+    }
+
+    // ✅ Validate payment_method if Paid
+    if (payment_status === "Paid" && !payment_method) {
+      return res.status(400).json({
+        error: "payment_method is required when marking Paid",
+      });
+    }
+
+    try {
+      connection = await pool.getConnection();
+      await connection.beginTransaction();
+
+      // ✅ Fetch order + user details
+      const [orders] = await connection.query(
+        `
+        SELECT 
+          o.id,
+          o.order_id,
+          o.total,
+          o.payment_status,
+          u.full_name,
+          u.email,
+          u.phone
+        FROM orders o
+        JOIN users u ON o.user_id = u.id
+        WHERE o.id = ?
+        `,
+        [id]
+      );
+
+      if (!orders.length) {
+        await connection.rollback();
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      const order = orders[0];
+
+      // ✅ Prevent duplicate paid
+      if (order.payment_status === "Paid" && payment_status === "Paid") {
+        await connection.rollback();
+        return res.status(400).json({
+          error: "Order is already marked as Paid",
+        });
+      }
+
+      const paidAt = payment_status === "Paid" ? new Date() : null;
+
+      // ✅ Update payment
+      await connection.query(
+        `
+        UPDATE orders
+        SET payment_status = ?,
+            payment_method = ?,
+            paid_at = ?
+        WHERE id = ?
+        `,
+        [
+          payment_status,
+          payment_method || null,
+          paidAt,
+          id,
+        ]
+      );
+
+      await connection.commit();
+
+      // =====================================================
+      // 📧 SEND EMAIL WHEN PAYMENT IS PAID
+      // =====================================================
+      if (payment_status === "Paid") {
+        const paymentHtml = `
+          <table style="width:100%; border-collapse:collapse;">
+            <tr><td><strong>Order ID</strong></td><td>${order.order_id}</td></tr>
+            <tr><td><strong>Customer</strong></td><td>${order.full_name}</td></tr>
+            <tr><td><strong>Payment Method</strong></td><td>${payment_method.toUpperCase()}</td></tr>
+            <tr><td><strong>Paid Amount</strong></td><td>$${parseFloat(order.total).toFixed(2)}</td></tr>
+            <tr><td><strong>Paid On</strong></td><td>${paidAt.toLocaleString()}</td></tr>
+          </table>
+        `;
+
+        // 📩 Customer Email
+        const userMailOptions = {
+          from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+          to: order.email,
+          subject: `Payment Received (Cash) - ${order.order_id}`,
+          html: `
+            <div style="font-family:Arial; max-width:600px; margin:auto;">
+              <h2 style="color:#2e7d32;">Payment Received ✅</h2>
+              <p>Hi <strong>${order.full_name}</strong>,</p>
+              <p>
+                We have successfully received your <strong>${payment_method.toUpperCase()}</strong> 
+                payment for order <strong>${order.order_id}</strong>.
+              </p>
+
+              <h3>Payment Summary</h3>
+              ${paymentHtml}
+
+              <p>
+                Thank you for your business!  
+                If you have any questions, contact us anytime.
+              </p>
+
+              <p>– Studio Signature Cabinets</p>
+            </div>
+          `,
+        };
+
+        // 📩 Admin Email
+        const adminMailOptions = {
+          from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+          to: "sjingle@studiosignaturecabinets.com",
+          subject: `Cash Payment Received - ${order.order_id}`,
+          html: `
+            <div style="font-family:Arial; max-width:600px; margin:auto;">
+              <h2 style="color:#1565c0;">Payment Recorded</h2>
+              <p>A payment has been recorded by admin.</p>
+
+              <h3>Payment Details</h3>
+              ${paymentHtml}
+
+              <p><strong>Customer Email:</strong> ${order.email}</p>
+              <p><strong>Phone:</strong> ${order.phone || "N/A"}</p>
+            </div>
+          `,
+        };
+
+        try {
+          await Promise.all([
+            transporter.sendMail(userMailOptions),
+            transporter.sendMail(adminMailOptions),
+          ]);
+          console.log("Cash payment emails sent for:", order.order_id);
+        } catch (mailErr) {
+          console.error("Payment email failed:", mailErr);
+        }
+      }
+
+      res.json({
+        message: "Payment status updated successfully",
+        order_id: id,
+        payment_status,
+        payment_method,
+        paid_at: paidAt,
+      });
+    } catch (err) {
+      if (connection) await connection.rollback();
+      console.error("Payment update error:", err);
+      res.status(500).json({ error: "Server error" });
+    } finally {
+      if (connection) connection.release();
+    }
+  }
+);
+
+
+
 
 
 cron.schedule("* * * * *", async () => {
@@ -10221,25 +10671,112 @@ app.put(
 // Get customer profile for invoice by customer_id
 
 
+// app.get("/api/admin/invoices", adminauthenticateToken, async (req, res) => {
+//   try {
+//     // Fetch all invoices with order details
+//     const [invoices] = await pool.query(
+//       `SELECT i.*, o.id AS order_internal_id, o.order_id, o.bill_to, o.account, o.door_style, o.finish_type
+//        FROM invoices i
+//        LEFT JOIN orders o ON i.order_id = o.id`
+//     );
+
+//     // Fetch all order items for the invoices
+//     const orderIds = invoices
+//       .map((invoice) => invoice.order_internal_id)
+//       .filter((id) => id);
+//     let items = [];
+//     if (orderIds.length > 0) {
+//       const [orderItems] = await pool.query(
+//         `SELECT oi.order_id, oi.sku, oi.name, oi.quantity, oi.door_style, oi.finish, oi.price, oi.total_amount
+//          FROM order_items oi
+//          WHERE oi.order_id IN (?)`,
+//         [orderIds]
+//       );
+//       items = orderItems;
+//     }
+
+//     // Associate items with their respective invoices
+//     const invoicesWithItems = invoices.map((invoice) => ({
+//       id: invoice.id,
+//       invoice_number: invoice.invoice_number,
+//       order_id: invoice.order_id, // String order_id from orders table (e.g., "S-ORD101127")
+//       customer_id: invoice.user_id, // Map user_id to customer_id for frontend
+//       issue_date: invoice.issue_date,
+//       subtotal: parseFloat(invoice.subtotal) || 0,
+//       tax: parseFloat(invoice.tax) || 0,
+//       shipping: invoice.shipping !== null ? parseFloat(invoice.shipping) : null,
+//       discount: parseFloat(invoice.discount) || 0,
+//       additional_discount: parseFloat(invoice.additional_discount) || 0,
+//       total: parseFloat(invoice.total) || 0,
+//       paid_at: invoice.paid_at || null,
+//       payment_intent_id: invoice.payment_intent_id || null,
+//       payment_status: invoice.payment_status || null,
+//       items: items
+//         .filter((item) => item.order_id === invoice.order_internal_id)
+//         .map((item) => ({
+//           sku: item.sku,
+//           name: item.name,
+//           quantity: item.quantity,
+//           door_style: item.door_style || null,
+//           finish: item.finish || null,
+//           price: parseFloat(item.price) || 0,
+//           total_amount: parseFloat(item.total_amount) || 0,
+//         })),
+//       bill_to: invoice.bill_to || null,
+//       account: invoice.account || null,
+//       finish_type: invoice.finish_type || null,
+//       door_style: invoice.door_style || null,
+//     }));
+
+//     res.json(invoicesWithItems);
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// });
+
 app.get("/api/admin/invoices", adminauthenticateToken, async (req, res) => {
   try {
-    // Fetch all invoices with order details
+    // Fetch all invoices with order details + payment method
     const [invoices] = await pool.query(
-      `SELECT i.*, o.id AS order_internal_id, o.order_id, o.bill_to, o.account, o.door_style, o.finish_type
-       FROM invoices i
-       LEFT JOIN orders o ON i.order_id = o.id`
+      `
+      SELECT 
+        i.*, 
+        o.id AS order_internal_id, 
+        o.order_id, 
+        o.bill_to, 
+        o.account, 
+        o.door_style, 
+        o.finish_type,
+        o.payment_method,       -- ✅ ADD THIS
+        o.payment_status,       -- ✅ OPTIONAL (already used)
+        o.paid_at               -- ✅ OPTIONAL
+      FROM invoices i
+      LEFT JOIN orders o ON i.order_id = o.id
+      `
     );
 
     // Fetch all order items for the invoices
     const orderIds = invoices
       .map((invoice) => invoice.order_internal_id)
       .filter((id) => id);
+
     let items = [];
     if (orderIds.length > 0) {
       const [orderItems] = await pool.query(
-        `SELECT oi.order_id, oi.sku, oi.name, oi.quantity, oi.door_style, oi.finish, oi.price, oi.total_amount
-         FROM order_items oi
-         WHERE oi.order_id IN (?)`,
+        `
+        SELECT 
+          oi.order_id, 
+          oi.sku, 
+          oi.name, 
+          oi.quantity, 
+          oi.door_style, 
+          oi.finish, 
+          oi.price, 
+          oi.total_amount
+        FROM order_items oi
+        WHERE oi.order_id IN (?)
+        `,
         [orderIds]
       );
       items = orderItems;
@@ -10249,8 +10786,8 @@ app.get("/api/admin/invoices", adminauthenticateToken, async (req, res) => {
     const invoicesWithItems = invoices.map((invoice) => ({
       id: invoice.id,
       invoice_number: invoice.invoice_number,
-      order_id: invoice.order_id, // String order_id from orders table (e.g., "S-ORD101127")
-      customer_id: invoice.user_id, // Map user_id to customer_id for frontend
+      order_id: invoice.order_id,
+      customer_id: invoice.user_id,
       issue_date: invoice.issue_date,
       subtotal: parseFloat(invoice.subtotal) || 0,
       tax: parseFloat(invoice.tax) || 0,
@@ -10258,9 +10795,13 @@ app.get("/api/admin/invoices", adminauthenticateToken, async (req, res) => {
       discount: parseFloat(invoice.discount) || 0,
       additional_discount: parseFloat(invoice.additional_discount) || 0,
       total: parseFloat(invoice.total) || 0,
+
+      // ✅ Payment Info
       paid_at: invoice.paid_at || null,
-      payment_intent_id: invoice.payment_intent_id || null,
       payment_status: invoice.payment_status || null,
+      payment_method: invoice.payment_method || null,   // ✅ ADDED
+      payment_intent_id: invoice.payment_intent_id || null,
+
       items: items
         .filter((item) => item.order_id === invoice.order_internal_id)
         .map((item) => ({
@@ -10272,6 +10813,7 @@ app.get("/api/admin/invoices", adminauthenticateToken, async (req, res) => {
           price: parseFloat(item.price) || 0,
           total_amount: parseFloat(item.total_amount) || 0,
         })),
+
       bill_to: invoice.bill_to || null,
       account: invoice.account || null,
       finish_type: invoice.finish_type || null,
@@ -10284,7 +10826,6 @@ app.get("/api/admin/invoices", adminauthenticateToken, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
 
 
 
