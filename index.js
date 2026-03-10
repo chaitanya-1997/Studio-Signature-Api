@@ -131,6 +131,63 @@ const generateInvoiceNumber = async () => {
   return `INV-${String(count).padStart(4, "0")}`;
 };
 
+
+const authenticateManager = async (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({
+      error: "Access denied, no token provided",
+    });
+  }
+
+  try {
+    // 1️⃣ Verify JWT
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    // 2️⃣ Role check
+    if (!decoded.role || !["manager", "admin"].includes(decoded.role)) {
+      return res.status(403).json({
+        error: "Access denied: Manager authorization required",
+      });
+    }
+
+    // 3️⃣ Fetch token_version from DB
+    const [rows] = await pool.query(
+      "SELECT id, token_version FROM managers WHERE id = ?",
+      [decoded.id],
+    );
+
+    if (!rows.length) {
+      return res.status(401).json({ error: "Manager not found" });
+    }
+
+    // 4️⃣ Token version validation (🔥 IMPORTANT)
+    if (rows[0].token_version !== decoded.token_version) {
+      return res.status(401).json({
+        error: "Session expired. Please login again.",
+      });
+    }
+
+    // 5️⃣ Attach manager to request
+    req.manager = {
+      id: decoded.id,
+      role: decoded.role,
+      token_version: decoded.token_version,
+    };
+
+    next();
+  } catch (err) {
+    console.error("Auth error:", err.message);
+    return res.status(403).json({ error: "Invalid or expired token" });
+  }
+};
+
+
+const generatePassword = () => {
+  return crypto.randomBytes(6).toString("base64"); // 10–12 chars
+};
 //----------------------------------------website API---------------------------------------
 
 // Email API endpoint
@@ -13924,6 +13981,2008 @@ app.post("/api/vendor/reset-password", async (req, res) => {
   }
 });
 
+
+//-----------------------------Manager Apis-----------------------------
+
+
+
+
+
+app.post("/api/manager/signup", async (req, res) => {
+  const { fullName, email, phone, password, confirmPassword, agreeTerms } =
+    req.body;
+
+  // ✅ Required fields
+  if (!fullName || !email || !phone || !password || !confirmPassword) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  if (!agreeTerms) {
+    return res.status(400).json({ error: "You must agree to the terms" });
+  }
+
+  if (password !== confirmPassword) {
+    return res.status(400).json({ error: "Passwords do not match" });
+  }
+
+  // ✅ Email validation
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || /\s/.test(email)) {
+    return res.status(400).json({ error: "Invalid email format" });
+  }
+
+  // ✅ Password validation
+  if (
+    !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/.test(
+      password,
+    )
+  ) {
+    return res.status(400).json({
+      error:
+        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character",
+    });
+  }
+
+  // ✅ Phone validation (10 digits)
+  const digitsOnly = phone.replace(/[^\d]/g, "");
+  if (!/^\d{10}$/.test(digitsOnly)) {
+    return res.status(400).json({
+      error: "Phone number must contain exactly 10 digits",
+    });
+  }
+
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // ✅ Check duplicate email / phone
+    const [existing] = await connection.query(
+      "SELECT id FROM managers WHERE email = ? OR phone = ?",
+      [email, digitsOnly],
+    );
+
+    if (existing.length > 0) {
+      await connection.rollback();
+      return res.status(400).json({
+        error: "Email or phone number already exists",
+      });
+    }
+
+    // ✅ Generate Manager Code (MGR0001)
+    const [rows] = await connection.query(
+      `SELECT manager_code 
+       FROM managers 
+       WHERE manager_code LIKE 'MGR%'
+       ORDER BY CAST(SUBSTRING(manager_code, 4) AS UNSIGNED) DESC 
+       LIMIT 1`,
+    );
+
+    let nextNumber = 1;
+    if (rows.length > 0) {
+      nextNumber = parseInt(rows[0].manager_code.substring(3)) + 1;
+    }
+    const managerCode = `MGR${String(nextNumber).padStart(4, "0")}`;
+
+    // ✅ Hash password
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
+    // ✅ Insert manager (pending approval)
+    const [result] = await connection.query(
+      `INSERT INTO managers 
+      (manager_code, full_name, email, phone, password_hash, is_active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [
+        managerCode,
+        fullName,
+        email,
+        digitsOnly,
+        hashedPassword,
+        0, // pending approval
+      ],
+    );
+
+    const managerId = result.insertId;
+
+    // ✅ Manager email
+    const managerMailOptions = {
+      from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+      to: email,
+      subject: "Manager Signup Received – Pending Approval",
+      html: `
+        <h2>Hello ${fullName},</h2>
+        <p>Your manager account request has been received.</p>
+        <p><strong>Manager Code:</strong> ${managerCode}</p>
+        <p>Your account is currently <strong>pending admin approval</strong>.</p>
+        <p>You will receive an email once your access is approved.</p>
+        <br>
+        <p>— Studio Signature Cabinets</p>
+      `,
+    };
+
+    // ✅ Admin email
+    const adminMailOptions = {
+      from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+      to: "aashish.shroff@zeta-v.com",
+      subject: `New Manager Signup – ${fullName}`,
+      html: `
+        <h2>New Manager Signup Request</h2>
+        <ul>
+          <li><strong>Manager Code:</strong> ${managerCode}</li>
+          <li><strong>Name:</strong> ${fullName}</li>
+          <li><strong>Email:</strong> ${email}</li>
+          <li><strong>Phone:</strong> ${digitsOnly}</li>
+          <li><strong>Status:</strong> Pending Approval</li>
+        </ul>
+        <p>Please review and approve this manager in the admin panel.</p>
+      `,
+    };
+
+    await Promise.all([
+      transporter.sendMail(managerMailOptions),
+      transporter.sendMail(adminMailOptions),
+    ]);
+
+    await connection.commit();
+
+    res.status(201).json({
+      message:
+        "Manager signup submitted successfully. Awaiting admin approval.",
+      managerCode,
+    });
+  } catch (err) {
+    if (connection) await connection.rollback();
+    console.error("Manager signup error:", err);
+    res.status(500).json({ error: "Server error" });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+app.post("/api/manager/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  // Basic validation
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
+
+  try {
+    // 🔍 Find manager by email
+    const [managers] = await pool.query(
+      "SELECT * FROM managers WHERE email = ?",
+      [email],
+    );
+
+    if (managers.length === 0) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    const manager = managers[0];
+
+    // 🔒 Check active status
+    if (!manager.is_active) {
+      return res.status(403).json({
+        error: "Account is pending approval or inactive",
+      });
+    }
+
+    // 🔐 Compare password
+    const isMatch = await bcrypt.compare(password, manager.password_hash);
+
+    if (!isMatch) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    // 🕒 Update last login
+    await pool.query("UPDATE managers SET last_login = NOW() WHERE id = ?", [
+      manager.id,
+    ]);
+
+    // 🔑 Generate JWT
+    const token = jwt.sign(
+      {
+        id: manager.id,
+        email: manager.email,
+        role: manager.role,
+        token_version: manager.token_version,
+      },
+      JWT_SECRET,
+      { expiresIn: "1d" },
+    );
+
+    // ✅ Response
+    res.json({
+      token,
+      manager: {
+        id: manager.id,
+        manager_code: manager.manager_code,
+        full_name: manager.full_name,
+        email: manager.email,
+        phone: manager.phone,
+        role: manager.role,
+      },
+    });
+  } catch (err) {
+    console.error("Manager login error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.get("/api/manager/profile", authenticateManager, async (req, res) => {
+  try {
+    const managerId = req.manager.id;
+
+    const [rows] = await pool.query(
+      `
+        SELECT 
+          id,
+          manager_code,
+          full_name,
+          email,
+          phone,
+          profile_photo,   -- ✅ ADD THIS
+          last_login,
+          created_at,
+          updated_at
+        FROM managers
+        WHERE id = ? AND role = 'manager'
+        `,
+      [managerId],
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: "Manager not found" });
+    }
+
+    res.json({ profile: rows[0] });
+  } catch (err) {
+    console.error("Fetch profile error:", err);
+    res.status(500).json({ error: "Failed to fetch profile" });
+  }
+});
+
+app.put("/api/manager/profile", authenticateManager, async (req, res) => {
+  const managerId = req.manager.id;
+  const { full_name, email, phone } = req.body;
+
+  if (!full_name || !email || !phone) {
+    return res.status(400).json({ error: "All fields required" });
+  }
+
+  // Email validation
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: "Invalid email format" });
+  }
+
+  await pool.query(
+    `
+      UPDATE managers
+      SET full_name = ?, email = ?, phone = ?, updated_at = NOW()
+      WHERE id = ? AND role = 'manager'
+      `,
+    [full_name, email, phone, managerId],
+  );
+
+  res.json({ message: "Profile updated successfully" });
+});
+
+// app.put(
+//   "/api/manager/change-password",
+//   authenticateManager,
+//   async (req, res) => {
+//     const { currentPassword, newPassword, confirmPassword } = req.body;
+//     const managerId = req.manager.id;
+
+//     if (!currentPassword || !newPassword || !confirmPassword) {
+//       return res.status(400).json({ error: "All fields are required" });
+//     }
+
+//     if (newPassword !== confirmPassword) {
+//       return res.status(400).json({ error: "Passwords do not match" });
+//     }
+
+//     try {
+//       const [rows] = await pool.query(
+//         "SELECT password_hash FROM managers WHERE id = ?",
+//         [managerId]
+//       );
+
+//       if (rows.length === 0) {
+//         return res.status(404).json({ error: "Manager not found" });
+//       }
+
+//       const isMatch = await bcrypt.compare(
+//         currentPassword,
+//         rows[0].password_hash // ✅ FIXED
+//       );
+
+//       if (!isMatch) {
+//         return res.status(401).json({
+//           error: "Current password is incorrect",
+//         });
+//       }
+
+//       const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+//       await pool.query(
+//   `
+//   UPDATE managers
+//   SET password_hash = ?, token_version = token_version + 1, updated_at = NOW()
+//   WHERE id = ?
+//   `,
+//   [hashedPassword, managerId]
+// );
+
+//       res.json({ message: "Password updated successfully" });
+//     } catch (err) {
+//       console.error("Change password error:", err);
+//       res.status(500).json({ error: "Server error" });
+//     }
+//   }
+// );
+
+app.put(
+  "/api/manager/change-password",
+  authenticateManager,
+  async (req, res) => {
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+    const managerId = req.manager.id;
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ error: "Passwords do not match" });
+    }
+
+    try {
+      // 1️⃣ Get current password + email
+      const [rows] = await pool.query(
+        "SELECT password_hash, email, full_name FROM managers WHERE id = ?",
+        [managerId],
+      );
+
+      if (!rows.length) {
+        return res.status(404).json({ error: "Manager not found" });
+      }
+
+      const manager = rows[0];
+
+      // 2️⃣ Verify current password
+      const isMatch = await bcrypt.compare(
+        currentPassword,
+        manager.password_hash,
+      );
+
+      if (!isMatch) {
+        return res.status(401).json({ error: "Current password is incorrect" });
+      }
+
+      // 3️⃣ Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      // 4️⃣ Update password + invalidate tokens
+      await pool.query(
+        `
+        UPDATE managers 
+        SET password_hash = ?, token_version = token_version + 1, updated_at = NOW()
+        WHERE id = ?
+        `,
+        [hashedPassword, managerId],
+      );
+
+      // 5️⃣ Send email notification
+      try {
+        await transporter.sendMail({
+          from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+          to: manager.email,
+          subject: "Your Password Has Been Changed",
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px;">
+              <h2>Password Changed Successfully</h2>
+              <p>Hello ${manager.full_name},</p>
+
+              <p>
+                This is a confirmation that your <strong>manager account password</strong>
+                was changed successfully.
+              </p>
+
+              <p>
+                <strong>If this was not you</strong>, please contact the admin team immediately.
+              </p>
+
+              <p>
+                📅 Date & Time: ${new Date().toLocaleString()}
+              </p>
+
+              <br/>
+              <p>— Studio Signature Cabinets Security Team</p>
+            </div>
+          `,
+        });
+      } catch (mailErr) {
+        console.error("Password change email failed:", mailErr);
+        // ⚠️ Do NOT fail API because password is already changed
+      }
+
+      // 6️⃣ Respond success
+      res.json({ message: "Password updated successfully" });
+    } catch (err) {
+      console.error("Change password error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  },
+);
+
+app.post(
+  "/api/manager/profile-photo",
+  authenticateManager,
+  upload.single("photo"),
+  async (req, res) => {
+    try {
+      if (!req.manager || !req.manager.id) {
+        return res.status(401).json({ error: "Unauthorized manager" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const managerId = req.manager.id;
+      const photoPath = `/uploads/${req.file.filename}`;
+
+      await pool.query(
+        "UPDATE managers SET profile_photo = ?, updated_at = NOW() WHERE id = ?",
+        [photoPath, managerId],
+      );
+
+      res.json({
+        message: "Profile photo updated successfully",
+        profile_photo: photoPath,
+      });
+    } catch (err) {
+      console.error("Photo upload error:", err);
+      res.status(500).json({ error: "Failed to upload profile photo" });
+    }
+  },
+);
+
+// app.post("/api/manager/customers", authenticateManager, async (req, res) => {
+//   const {
+//     fullName,
+//     email,
+//     phone,
+//     street,
+//     city,
+//     state,
+//     postalCode,
+//     companyName,
+//   } = req.body;
+
+//   if (!fullName || !email || !phone || !street || !city || !state) {
+//     return res.status(400).json({ error: "Missing required fields" });
+//   }
+
+//   try {
+//     // Check duplicate email
+//     const [existing] = await pool.query(
+//       "SELECT id FROM users WHERE email = ?",
+//       [email],
+//     );
+
+//     if (existing.length > 0) {
+//       return res.status(400).json({ error: "Email already exists" });
+//     }
+
+//     // Generate & hash password
+//     const plainPassword = generatePassword();
+//     const hashedPassword = await bcrypt.hash(plainPassword, SALT_ROUNDS);
+
+//     // Insert customer
+//     const [result] = await pool.query(
+//       `INSERT INTO users (
+//           user_type,
+//           full_name,
+//           email,
+//           password,
+//           phone,
+//           street,
+//           city,
+//           state,
+//           postal_code,
+//           company_name,
+//           registration_source,
+//           created_by_manager_id,
+//           assigned_manager_id,
+//           is_active,
+//           created_at
+//         )
+//         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+//       [
+//         "customer",
+//         fullName,
+//         email,
+//         hashedPassword,
+//         phone,
+//         street,
+//         city,
+//         state,
+//         postalCode || null,
+//         companyName || null,
+//         "manager",
+//         req.manager.id,
+//         req.manager.id,
+//         1,
+//       ],
+//     );
+
+//     // Email credentials
+//     await transporter.sendMail({
+//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//       to: email,
+//       subject: "Your Account Has Been Created",
+//       html: `
+//           <h2>Welcome ${fullName}</h2>
+//           <p>Your account has been created by your manager.</p>
+//           <p><strong>Login Credentials:</strong></p>
+//           <ul>
+//             <li>Email: ${email}</li>
+//             <li>Password: ${plainPassword}</li>
+//           </ul>
+//           <p>Please login and change your password after first login.</p>
+//         `,
+//     });
+
+//     await transporter.sendMail({
+//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//       to: "aashish.shroff@zeta-v.com", // admin email
+//       subject: `New Customer Created by Manager - ${req.manager.full_name}`,
+//       html: `
+//     <div style="font-family: Arial, sans-serif; max-width: 600px;">
+//       <h2>New Customer Created</h2>
+
+//       <p>A manager has created a new customer account.</p>
+
+//       <h3>Manager Details</h3>
+//       <ul>
+//         <li><strong>Name:</strong> ${req.manager.full_name}</li>
+//         <li><strong>Email:</strong> ${req.manager.email}</li>
+//         <li><strong>Manager ID:</strong> ${req.manager.id}</li>
+//       </ul>
+
+//       <h3>Customer Details</h3>
+//       <ul>
+//         <li><strong>Full Name:</strong> ${fullName}</li>
+//         <li><strong>Email:</strong> ${email}</li>
+//         <li><strong>Phone:</strong> ${phone}</li>
+//         <li><strong>City:</strong> ${city}</li>
+//         <li><strong>State:</strong> ${state}</li>
+//       </ul>
+
+//       <p><strong>Registration Source:</strong> Manager (In-house)</p>
+//       <p><strong>Created At:</strong> ${new Date().toLocaleString()}</p>
+
+//       <p>Please log in to the admin panel for further review if required.</p>
+//     </div>
+//   `,
+//     });
+
+//     res.status(201).json({
+//       message: "Customer created and credentials sent via email",
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// });
+
+
+app.post("/api/manager/customers", authenticateManager, async (req, res) => {
+  const {
+    fullName,
+    email,
+    phone,
+    street,
+    city,
+    state,
+    postalCode,
+    companyName,
+  } = req.body;
+
+  if (!fullName || !email || !phone || !street || !city || !state) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  try {
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // Check duplicate email
+    const [existing] = await connection.query(
+      "SELECT id FROM users WHERE email = ?",
+      [email]
+    );
+
+    if (existing.length > 0) {
+      return res.status(400).json({ error: "Email already exists" });
+    }
+
+    // 🔹 Generate Customer Code
+    let customerCode = null;
+
+    const [rows] = await connection.query(`
+      SELECT customer_code
+      FROM users
+      WHERE customer_code LIKE 'CUST%'
+      ORDER BY customer_code DESC
+      LIMIT 1
+      FOR UPDATE
+    `);
+
+    if (rows.length === 0) {
+      customerCode = "CUST001";
+    } else {
+      const lastNumber = parseInt(rows[0].customer_code.replace("CUST", ""), 10);
+      customerCode = `CUST${String(lastNumber + 1).padStart(3, "0")}`;
+    }
+
+    // Generate & hash password
+    const plainPassword = generatePassword();
+    const hashedPassword = await bcrypt.hash(plainPassword, SALT_ROUNDS);
+
+    // Insert customer
+    await connection.query(
+      `INSERT INTO users (
+          user_type,
+          customer_code,
+          full_name,
+          email,
+          password,
+          phone,
+          street,
+          city,
+          state,
+          postal_code,
+          company_name,
+          registration_source,
+          created_by_manager_id,
+          assigned_manager_id,
+          is_active,
+          created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [
+        "customer",
+        customerCode,
+        fullName,
+        email,
+        hashedPassword,
+        phone,
+        street,
+        city,
+        state,
+        postalCode || null,
+        companyName || null,
+        "manager",
+        req.manager.id,
+        req.manager.id,
+        1,
+      ]
+    );
+
+    await connection.commit();
+    connection.release();
+
+    // Send email
+    await transporter.sendMail({
+      from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+      to: email,
+      subject: "Your Account Has Been Created",
+      html: `
+        <h2>Welcome ${fullName}</h2>
+        <p>Your account has been created by your manager.</p>
+
+        <p><strong>Customer Code:</strong> ${customerCode}</p>
+
+        <p><strong>Login Credentials:</strong></p>
+        <ul>
+          <li>Email: ${email}</li>
+          <li>Password: ${plainPassword}</li>
+        </ul>
+
+        <p>Please login and change your password.</p>
+      `,
+    });
+
+    res.status(201).json({
+      message: "Customer created successfully",
+      customerCode,
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.get("/api/manager/customers", authenticateManager, async (req, res) => {
+  const [users] = await pool.query(
+    "SELECT * FROM users WHERE assigned_manager_id = ?",
+    [req.manager.id],
+  );
+
+  res.json(users);
+});
+
+app.put("/api/manager/customers/:id", authenticateManager, async (req, res) => {
+  const customerId = req.params.id;
+  const {
+    fullName,
+    companyName,
+    email,
+    phone,
+    street,
+    city,
+    state,
+    postalCode,
+  } = req.body;
+
+  if (!fullName || !email || !phone || !street || !city || !state) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  try {
+    // Ensure customer belongs to this manager
+    const [existing] = await pool.query(
+      `SELECT id FROM users 
+         WHERE id = ? AND assigned_manager_id = ?`,
+      [customerId, req.manager.id],
+    );
+
+    if (existing.length === 0) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    await pool.query(
+      `UPDATE users SET
+          full_name = ?,
+          company_name = ?,
+          email = ?,
+          phone = ?,
+          street = ?,
+          city = ?,
+          state = ?,
+          postal_code = ?,
+          updated_at = NOW()
+         WHERE id = ?`,
+      [
+        fullName,
+        companyName || null,
+        email,
+        phone,
+        street,
+        city,
+        state,
+        postalCode || null,
+        customerId,
+      ],
+    );
+
+    res.json({ message: "Customer updated successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.delete(
+  "/api/manager/customers/:id",
+  authenticateManager,
+  async (req, res) => {
+    const customerId = req.params.id;
+
+    try {
+      const [existing] = await pool.query(
+        `SELECT id FROM users 
+         WHERE id = ? AND assigned_manager_id = ?`,
+        [customerId, req.manager.id],
+      );
+
+      if (existing.length === 0) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      await pool.query("DELETE FROM users WHERE id = ?", [customerId]);
+
+      res.json({ message: "Customer deleted successfully" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Server error" });
+    }
+  },
+);
+
+app.get("/api/manager/items", authenticateManager, async (req, res) => {
+  try {
+    const { item_type, color, sku_prefix, sku } = req.query;
+    let query = "SELECT * FROM items WHERE 1=1";
+    const params = [];
+
+    if (item_type) {
+      query += " AND item_type = ?";
+      params.push(item_type.toUpperCase());
+    }
+
+    if (color) {
+      query += " AND color = ?";
+      params.push(color);
+    }
+
+    if (sku_prefix) {
+      query += " AND sku LIKE ?";
+      params.push(`${sku_prefix}%`);
+    }
+
+    if (sku) {
+      query += " AND sku = ?";
+      params.push(sku);
+    }
+
+    const [rows] = await pool.query(query, params);
+    res.json(rows);
+  } catch (err) {
+    console.error("Error fetching items:", err);
+    res.status(500).json({ error: "Failed to fetch items" });
+  }
+});
+
+// API to fetch unique item types
+app.get("/api/manager/items/types", authenticateManager, async (req, res) => {
+  try {
+    const query = "SELECT DISTINCT item_type FROM items";
+    const [rows] = await pool.query(query);
+    const itemTypes = rows.map((row) => row.item_type);
+    res.json(itemTypes);
+  } catch (err) {
+    console.error("Error fetching item types:", err);
+    res.status(500).json({ error: "Failed to fetch item types" });
+  }
+});
+
+// API to fetch unique colors for a given item type
+app.get("/api/manager/items/colors", authenticateManager, async (req, res) => {
+  try {
+    const { item_type } = req.query;
+    if (!item_type) {
+      return res.status(400).json({ error: "item_type parameter is required" });
+    }
+    const query = "SELECT DISTINCT color FROM items WHERE item_type = ?";
+    const [rows] = await pool.query(query, [item_type.toUpperCase()]);
+    const colors = rows.map((row) => row.color);
+    res.json(colors);
+  } catch (err) {
+    console.error("Error fetching colors:", err);
+    res.status(500).json({ error: "Failed to fetch colors" });
+  }
+});
+
+app.post("/api/manager/orders", authenticateManager, async (req, res) => {
+  const {
+    doorStyle,
+    finishType,
+    stainOption,
+    paintOption,
+    account,
+    billTo,
+    jobsiteAddress,
+    items,
+    designServicesPrice,
+    assemblyFlag,
+    subtotal,
+    tax,
+    shipping,
+    total,
+    discount,
+    poNumber,
+    requestedDeliveryDate,
+    customer_id, // sent only when manager creates order
+  } = req.body;
+
+  let connection;
+
+  try {
+    console.log("Order payload:", req.body);
+
+    /* ---------------------------------------------------
+       1️⃣ RESOLVE WHO IS CREATING THE ORDER
+    --------------------------------------------------- */
+    let userId = null; // WILL ALWAYS STORE CUSTOMER ID
+    let managerId = null; // OPTIONAL AUDIT
+
+    if (req.manager) {
+      // ✅ Manager panel
+      if (!customer_id) {
+        return res.status(400).json({
+          error: "Customer ID is required when manager creates order",
+        });
+      }
+
+      userId = customer_id; // ✅ store customer in user_id
+      managerId = req.manager.id;
+    } else if (req.user) {
+      // ✅ Customer panel
+      userId = req.user.id;
+    } else {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    /* ---------------------------------------------------
+       2️⃣ VALIDATE CUSTOMER
+    --------------------------------------------------- */
+    const [customerCheck] = await pool.query(
+      "SELECT id, full_name, email FROM users WHERE id = ? AND user_type = 'customer'",
+      [userId],
+    );
+
+    if (!customerCheck.length) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
+    const customer = customerCheck[0];
+
+    /* ---------------------------------------------------
+       3️⃣ BASIC VALIDATIONS
+    --------------------------------------------------- */
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: "Items are required" });
+    }
+
+    if (!doorStyle || !finishType || !account || !billTo) {
+      return res.status(400).json({
+        error: "Door style, finish type, billing and shipping are required",
+      });
+    }
+
+    if (finishType === "Stained" && !stainOption) {
+      return res.status(400).json({
+        error: "Stain option required for stained finish",
+      });
+    }
+
+    if (finishType === "Painted" && !paintOption) {
+      return res.status(400).json({
+        error: "Paint option required for painted finish",
+      });
+    }
+
+    if (!["Included", "Not Included"].includes(assemblyFlag)) {
+      return res.status(400).json({
+        error: "Invalid assembly flag",
+      });
+    }
+
+    /* ---------------------------------------------------
+       4️⃣ CALCULATIONS VALIDATION
+    --------------------------------------------------- */
+    const itemsSubtotal = items.reduce(
+      (sum, i) => sum + Number(i.totalAmount || 0),
+      0,
+    );
+
+    const expectedSubtotal = Number(
+      (itemsSubtotal + Number(designServicesPrice || 0)).toFixed(2),
+    );
+
+    if (Number(subtotal.toFixed(2)) !== expectedSubtotal) {
+      return res.status(400).json({
+        error: `Subtotal mismatch. Expected ${expectedSubtotal}`,
+      });
+    }
+
+    if (discount < 0 || discount > subtotal) {
+      return res.status(400).json({ error: "Invalid discount amount" });
+    }
+
+    const taxBase = subtotal - discount;
+    const expectedTax = Number((taxBase * 0.065).toFixed(2));
+    const expectedTotal = Number((taxBase + expectedTax).toFixed(2));
+
+    if (Number(total.toFixed(2)) !== expectedTotal) {
+      return res.status(400).json({
+        error: `Total mismatch. Expected ${expectedTotal}`,
+      });
+    }
+
+    /* ---------------------------------------------------
+       5️⃣ TRANSACTION START
+    --------------------------------------------------- */
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    /* ---------------------------------------------------
+       6️⃣ INVENTORY CHECK
+    --------------------------------------------------- */
+    for (const item of items) {
+      const [stock] = await connection.query(
+        "SELECT qty FROM items WHERE sku = ?",
+        [item.sku],
+      );
+
+      if (!stock.length || stock[0].qty < item.quantity) {
+        throw new Error(`Insufficient stock for ${item.sku}`);
+      }
+    }
+
+    /* ---------------------------------------------------
+       7️⃣ INSERT ORDER
+    --------------------------------------------------- */
+    const [orderResult] = await connection.query(
+      `
+      INSERT INTO orders (
+        user_id,
+        manager_id,
+        door_style,
+        finish_type,
+        stain_option,
+        paint_option,
+        account,
+        bill_to,
+        jobsite_address,
+        design_services_price,
+        assembly_flag,
+        subtotal,
+        tax,
+        shipping,
+        discount,
+        total,
+        requested_delivery_date,
+        status,
+        created_at,
+        po_number
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW(), ?)
+      `,
+      [
+        userId,
+        managerId,
+        doorStyle,
+        finishType,
+        stainOption || null,
+        paintOption || null,
+        account,
+        billTo,
+        jobsiteAddress || null,
+        designServicesPrice || 0,
+        assemblyFlag,
+        subtotal,
+        tax,
+        shipping ?? null,
+        discount,
+        total,
+        requestedDeliveryDate || null,
+        poNumber || null,
+      ],
+    );
+
+    const autoId = orderResult.insertId;
+    const orderId = `S-ORD${String(autoId + 101001).padStart(6, "0")}`;
+
+    await connection.query("UPDATE orders SET order_id = ? WHERE id = ?", [
+      orderId,
+      autoId,
+    ]);
+
+    /* ---------------------------------------------------
+       8️⃣ INSERT ITEMS + UPDATE STOCK
+    --------------------------------------------------- */
+    for (const item of items) {
+      await connection.query(
+        `
+        INSERT INTO order_items
+        (order_id, sku, name, quantity, price, total_amount, door_style, finish)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          autoId,
+          item.sku,
+          item.name,
+          item.quantity,
+          item.price,
+          item.totalAmount,
+          doorStyle,
+          finishType,
+        ],
+      );
+
+      await connection.query("UPDATE items SET qty = qty - ? WHERE sku = ?", [
+        item.quantity,
+        item.sku,
+      ]);
+    }
+
+    await connection.commit();
+
+    /* ---------------------------------------------------
+       9️⃣ RESPONSE
+    --------------------------------------------------- */
+    res.status(201).json({
+      message: "Order created successfully",
+      order_id: orderId,
+      created_by: managerId ? "manager" : "customer",
+      customer: customer.full_name,
+    });
+  } catch (err) {
+    if (connection) await connection.rollback();
+    console.error("Order error:", err);
+    res.status(400).json({ error: err.message });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// app.post("/api/manager/orders", authenticateManager, async (req, res) => {
+//   const {
+//     doorStyle,
+//     finishType,
+//     stainOption,
+//     paintOption,
+//     account,
+//     billTo,
+//     jobsiteAddress,
+//     items,
+//     designServicesPrice,
+//     assemblyFlag,
+//     subtotal,
+//     tax,
+//     shipping,
+//     total,
+//     discount,
+//     poNumber,
+//     requestedDeliveryDate,
+//     customer_id,
+//   } = req.body;
+
+//   let connection;
+
+//   try {
+//     /* ---------------------------------------------------
+//        1️⃣ RESOLVE CREATOR
+//     --------------------------------------------------- */
+//     if (!customer_id) {
+//       return res.status(400).json({
+//         error: "Customer ID is required when manager creates order",
+//       });
+//     }
+
+//     const userId = customer_id;         // ✅ CUSTOMER stored in user_id
+//     const managerId = req.manager.id;   // ✅ MANAGER audit
+
+//     /* ---------------------------------------------------
+//        2️⃣ FETCH CUSTOMER
+//     --------------------------------------------------- */
+//     const [users] = await pool.query(
+//       `SELECT id, full_name, email, phone
+//        FROM users
+//        WHERE id = ? AND user_type = 'customer'`,
+//       [userId]
+//     );
+
+//     if (!users.length) {
+//       return res.status(404).json({ error: "Customer not found" });
+//     }
+
+//     const customer = users[0];
+//     const userFullName = customer.full_name;
+//     const userEmail = customer.email;
+//     const userPhone = customer.phone || "N/A";
+
+//     /* ---------------------------------------------------
+//        3️⃣ BASIC VALIDATION
+//     --------------------------------------------------- */
+//     if (!items || !Array.isArray(items) || items.length === 0) {
+//       return res.status(400).json({ error: "Items are required" });
+//     }
+
+//     if (!doorStyle || !finishType || !account || !billTo) {
+//       return res.status(400).json({
+//         error: "Door style, finish type, billing and shipping are required",
+//       });
+//     }
+
+//     if (finishType === "Stained" && !stainOption) {
+//       return res.status(400).json({ error: "Stain option required" });
+//     }
+
+//     if (finishType === "Painted" && !paintOption) {
+//       return res.status(400).json({ error: "Paint option required" });
+//     }
+
+//     /* ---------------------------------------------------
+//        4️⃣ CALCULATION VALIDATION
+//     --------------------------------------------------- */
+//     const itemsSubtotal = items.reduce(
+//       (sum, i) => sum + Number(i.totalAmount || 0),
+//       0
+//     );
+
+//     const expectedSubtotal = Number(
+//       (itemsSubtotal + Number(designServicesPrice || 0)).toFixed(2)
+//     );
+
+//     if (Number(subtotal.toFixed(2)) !== expectedSubtotal) {
+//       throw new Error("Subtotal mismatch");
+//     }
+
+//     if (discount < 0 || discount > subtotal) {
+//       throw new Error("Invalid discount");
+//     }
+
+//     const taxBase = subtotal - discount;
+//     const expectedTax = Number((taxBase * 0.065).toFixed(2));
+//     const expectedTotal = Number((taxBase + expectedTax).toFixed(2));
+
+//     if (Number(total.toFixed(2)) !== expectedTotal) {
+//       throw new Error("Total mismatch");
+//     }
+
+//     /* ---------------------------------------------------
+//        5️⃣ TRANSACTION START
+//     --------------------------------------------------- */
+//     connection = await pool.getConnection();
+//     await connection.beginTransaction();
+
+//     /* ---------------------------------------------------
+//        6️⃣ INVENTORY CHECK
+//     --------------------------------------------------- */
+//     for (const item of items) {
+//       const [stock] = await connection.query(
+//         "SELECT qty FROM items WHERE sku = ?",
+//         [item.sku]
+//       );
+
+//       if (!stock.length || stock[0].qty < item.quantity) {
+//         throw new Error(`Insufficient stock for ${item.sku}`);
+//       }
+//     }
+
+//     /* ---------------------------------------------------
+//        7️⃣ INSERT ORDER
+//     --------------------------------------------------- */
+//     const [orderResult] = await connection.query(
+//       `
+//       INSERT INTO orders (
+//         user_id,
+//         manager_id,
+//         door_style,
+//         finish_type,
+//         stain_option,
+//         paint_option,
+//         account,
+//         bill_to,
+//         jobsite_address,
+//         design_services_price,
+//         assembly_flag,
+//         subtotal,
+//         tax,
+//         shipping,
+//         discount,
+//         total,
+//         requested_delivery_date,
+//         status,
+//         created_at,
+//         po_number
+//       )
+//       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW(), ?)
+//       `,
+//       [
+//         userId,
+//         managerId,
+//         doorStyle,
+//         finishType,
+//         stainOption || null,
+//         paintOption || null,
+//         account,
+//         billTo,
+//         jobsiteAddress || null,
+//         designServicesPrice || 0,
+//         assemblyFlag,
+//         subtotal,
+//         tax,
+//         shipping ?? null,
+//         discount,
+//         total,
+//         requestedDeliveryDate || null,
+//         poNumber || null,
+//       ]
+//     );
+
+//     const autoId = orderResult.insertId;
+//     const orderId = `S-ORD${String(autoId + 101001).padStart(6, "0")}`;
+
+//     await connection.query(
+//       "UPDATE orders SET order_id = ? WHERE id = ?",
+//       [orderId, autoId]
+//     );
+
+//     /* ---------------------------------------------------
+//        8️⃣ INSERT ITEMS + UPDATE STOCK
+//     --------------------------------------------------- */
+//     for (const item of items) {
+//       await connection.query(
+//         `
+//         INSERT INTO order_items
+//         (order_id, sku, name, quantity, price, total_amount, door_style, finish)
+//         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+//         `,
+//         [
+//           autoId,
+//           item.sku,
+//           item.name,
+//           item.quantity,
+//           item.price,
+//           item.totalAmount,
+//           doorStyle,
+//           finishType,
+//         ]
+//       );
+
+//       await connection.query(
+//         "UPDATE items SET qty = qty - ? WHERE sku = ?",
+//         [item.quantity, item.sku]
+//       );
+//     }
+
+//     await connection.commit();
+
+//     /* ---------------------------------------------------
+//        9️⃣ EMAIL LOGIC
+//     --------------------------------------------------- */
+
+//     const userItems = items.filter(i => !i.sku.endsWith("-CAR"));
+
+//     await transporter.sendMail({
+//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//       to: userEmail,
+//       subject: `Order Submitted - ${orderId} (Pending Approval)`,
+//       html: `
+//         <h2>Thank You ${userFullName}!</h2>
+//         <p>Your order <strong>${orderId}</strong> has been submitted and is pending approval.</p>
+//         ${userOrderDetailsHtml}
+//       `,
+//     });
+
+//     await transporter.sendMail({
+//       from: '"Studio Signature Cabinets" <sssdemo6@gmail.com>',
+//       to: "sjingle@studiosignaturecabinets.com",
+//       subject: `New Order Pending Approval - ${orderId}`,
+//       html: `
+//         <h2>New Order Pending Approval</h2>
+//         <p>Customer: <strong>${userFullName}</strong> (${userEmail})</p>
+//         <p>Phone: ${userPhone}</p>
+//         ${adminOrderDetailsHtml}
+//       `,
+//     });
+
+//     /* ---------------------------------------------------
+//        🔟 RESPONSE
+//     --------------------------------------------------- */
+//     res.status(201).json({
+//       message: "Order created successfully",
+//       order_id: orderId,
+//       created_by: "manager",
+//       customer: userFullName,
+//     });
+
+//   } catch (err) {
+//     if (connection) await connection.rollback();
+//     console.error("Order error:", err);
+//     res.status(400).json({ error: err.message });
+//   } finally {
+//     if (connection) connection.release();
+//   }
+// });
+
+app.get("/api/manager/orders", authenticateManager, async (req, res) => {
+  try {
+    const managerId = req.manager.id;
+
+    const [orders] = await pool.query(
+      `
+      SELECT 
+        o.id,
+        o.order_id,
+        o.created_at,
+        o.status,
+
+        o.door_style,
+        o.finish_type,
+        o.stain_option,
+        o.paint_option,
+
+        o.account,
+        o.bill_to,
+        o.jobsite_address,
+        o.requested_delivery_date,
+
+        o.subtotal,
+        o.discount,
+        o.tax,
+        o.shipping,
+        o.total,
+
+        o.design_services_price,
+        o.assembly_flag,
+        o.po_number,
+
+        -- ✅ CUSTOMER INFO
+        u.full_name AS customer_name,
+        u.email AS customer_email,
+
+        -- ✅ MANAGER INFO
+        m.full_name AS manager_name,
+
+        GROUP_CONCAT(
+          JSON_OBJECT(
+            'sku', oi.sku,
+            'name', oi.name,
+            'quantity', oi.quantity,
+            'price', oi.price,
+            'totalAmount', oi.total_amount
+          )
+        ) AS items
+
+      FROM orders o
+      LEFT JOIN users u ON o.user_id = u.id
+      LEFT JOIN managers m ON o.manager_id = m.id
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+
+      WHERE o.manager_id = ?
+
+      GROUP BY o.id
+      ORDER BY o.created_at DESC
+      `,
+      [managerId],
+    );
+
+    const formattedOrders = orders.map((order) => ({
+      id: order.id,
+      order_id: order.order_id,
+
+      created_at: order.created_at
+        ? new Date(order.created_at).toISOString()
+        : null,
+
+      requested_delivery_date: order.requested_delivery_date
+        ? new Date(order.requested_delivery_date).toISOString().split("T")[0]
+        : null,
+
+      status: order.status,
+
+      door_style: order.door_style,
+      finish_type: order.finish_type,
+      stain_option: order.stain_option,
+      paint_option: order.paint_option,
+
+      account: order.account,
+      bill_to: order.bill_to,
+      jobsite_address: order.jobsite_address,
+
+      subtotal: parseFloat(order.subtotal || 0).toFixed(2),
+      discount: parseFloat(order.discount || 0).toFixed(2),
+      tax: parseFloat(order.tax || 0).toFixed(2),
+      shipping:
+        order.shipping !== null ? parseFloat(order.shipping).toFixed(2) : null,
+      total: `$${parseFloat(order.total || 0).toFixed(2)}`,
+
+      design_services_price: parseFloat(
+        order.design_services_price || 0,
+      ).toFixed(2),
+
+      assembly_flag: order.assembly_flag,
+      po_number: order.po_number,
+
+      customerName: order.customer_name,
+      customerEmail: order.customer_email,
+      manager_name: order.manager_name,
+
+      items: order.items ? JSON.parse(`[${order.items}]`) : [],
+    }));
+
+    res.json(formattedOrders);
+  } catch (err) {
+    console.error("GET /api/manager/orders error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+
+/* ══════════════════════════════════════════════
+   PUT /api/manager/orders/:id  — Edit Order
+══════════════════════════════════════════════ */
+app.put("/api/manager/orders/:id", authenticateManager, async (req, res) => {
+  const orderId = req.params.id;
+  const {
+    doorStyle,
+    finishType,
+    stainOption,
+    paintOption,
+    billTo,
+    account,
+    jobsiteAddress,
+    requestedDeliveryDate,
+    poNumber,
+    discount,
+    assemblyFlag,
+    designServicesPrice,
+    status,
+  } = req.body;
+
+  // Basic validation
+  if (!doorStyle || !finishType || !billTo || !account) {
+    return res.status(400).json({ error: "Door style, finish type, billing and shipping address are required" });
+  }
+
+  if (!["Included", "Not Included"].includes(assemblyFlag)) {
+    return res.status(400).json({ error: "Invalid assembly flag" });
+  }
+
+  const validStatuses = ["Pending", "Processing", "Completed", "Cancelled"];
+  if (status && !validStatuses.includes(status)) {
+    return res.status(400).json({ error: "Invalid status value" });
+  }
+
+  try {
+    // Ensure this order belongs to the requesting manager
+    const [existing] = await pool.query(
+      `SELECT id FROM orders WHERE id = ? AND manager_id = ?`,
+      [orderId, req.manager.id]
+    );
+
+    if (existing.length === 0) {
+      return res.status(403).json({ error: "Order not found or access denied" });
+    }
+
+    await pool.query(
+      `UPDATE orders SET
+        door_style              = ?,
+        finish_type             = ?,
+        stain_option            = ?,
+        paint_option            = ?,
+        bill_to                 = ?,
+        account                 = ?,
+        jobsite_address         = ?,
+        requested_delivery_date = ?,
+        po_number               = ?,
+        discount                = ?,
+        assembly_flag           = ?,
+        design_services_price   = ?,
+        status                  = ?,
+        updated_at              = NOW()
+      WHERE id = ?`,
+      [
+        doorStyle,
+        finishType,
+        stainOption  || null,
+        paintOption  || null,
+        billTo,
+        account,
+        jobsiteAddress         || null,
+        requestedDeliveryDate  || null,
+        poNumber               || null,
+        parseFloat(discount)   || 0,
+        assemblyFlag,
+        parseFloat(designServicesPrice) || 0,
+        status || "Pending",
+        orderId,
+      ]
+    );
+
+    res.json({ message: "Order updated successfully" });
+  } catch (err) {
+    console.error("Update order error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+/* ══════════════════════════════════════════════
+   DELETE /api/manager/orders/:id  — Delete Order
+══════════════════════════════════════════════ */
+app.delete("/api/manager/orders/:id", authenticateManager, async (req, res) => {
+  const orderId = req.params.id;
+
+  let connection;
+
+  try {
+    // Ensure this order belongs to the requesting manager
+    const [existing] = await pool.query(
+      `SELECT id FROM orders WHERE id = ? AND manager_id = ?`,
+      [orderId, req.manager.id]
+    );
+
+    if (existing.length === 0) {
+      return res.status(403).json({ error: "Order not found or access denied" });
+    }
+
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // 1. Restore stock for each item in this order
+    const [orderItems] = await connection.query(
+      `SELECT sku, quantity FROM order_items WHERE order_id = ?`,
+      [orderId]
+    );
+
+    for (const item of orderItems) {
+      await connection.query(
+        `UPDATE items SET qty = qty + ? WHERE sku = ?`,
+        [item.quantity, item.sku]
+      );
+    }
+
+    // 2. Delete order items
+    await connection.query(
+      `DELETE FROM order_items WHERE order_id = ?`,
+      [orderId]
+    );
+
+    // 3. Delete the order itself
+    await connection.query(
+      `DELETE FROM orders WHERE id = ?`,
+      [orderId]
+    );
+
+    await connection.commit();
+
+    res.json({ message: "Order deleted successfully" });
+  } catch (err) {
+    if (connection) await connection.rollback();
+    console.error("Delete order error:", err);
+    res.status(500).json({ error: "Server error" });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+app.get(
+  "/api/manager/customers/count",
+  authenticateManager,
+  async (req, res) => {
+    try {
+      const managerId = req.manager.id;
+
+      const [[result]] = await pool.query(
+        `
+        SELECT COUNT(*) AS totalCustomers
+        FROM users
+        WHERE user_type = 'customer'
+          AND assigned_manager_id = ?
+        `,
+        [managerId],
+      );
+
+      res.json({
+        assigned_manager_id: managerId,
+        total_customers: result.totalCustomers,
+      });
+    } catch (err) {
+      console.error("Customer count error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  },
+);
+
+app.get("/api/manager/orders/count", authenticateManager, async (req, res) => {
+  try {
+    const managerId = req.manager.id;
+
+    const [[result]] = await pool.query(
+      `
+        SELECT COUNT(*) AS totalOrders
+        FROM orders
+        WHERE manager_id = ?
+        `,
+      [managerId],
+    );
+
+    res.json({
+      manager_id: managerId,
+      total_orders: result.totalOrders,
+    });
+  } catch (err) {
+    console.error("Manager order count error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.get(
+  "/api/manager/orders/completed/count",
+  authenticateManager,
+  async (req, res) => {
+    try {
+      const managerId = req.manager.id;
+
+      const [[result]] = await pool.query(
+        `
+        SELECT COUNT(*) AS completedOrders
+        FROM orders
+        WHERE manager_id = ?
+          AND status = 'Completed'
+        `,
+        [managerId],
+      );
+
+      res.json({
+        manager_id: managerId,
+        completed_orders: result.completedOrders,
+      });
+    } catch (err) {
+      console.error("Manager completed order count error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  },
+);
+
+app.get(
+  "/api/manager/orders/revenue",
+  authenticateManager,
+  async (req, res) => {
+    try {
+      const managerId = req.manager.id;
+
+      const [[result]] = await pool.query(
+        `
+        SELECT 
+          COALESCE(SUM(total), 0) AS totalRevenue
+        FROM orders
+        WHERE manager_id = ?
+        `,
+        [managerId],
+      );
+
+      res.json({
+        manager_id: managerId,
+        total_revenue: Number(result.totalRevenue).toFixed(2),
+      });
+    } catch (err) {
+      console.error("Manager revenue error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  },
+);
+
+
+
+app.get("/api/manager/items", authenticateManager, async (req, res) => {
+  try {
+    const { sku, item_type, color } = req.query;
+
+    let query = `
+      SELECT 
+        id,
+        sku,
+        description,
+        item_type,
+        search_description,
+        unit_of_measure,
+        price,
+        weight,
+        cube,
+        cw,
+        gr,
+        se,
+        sw,
+        color,
+        qty,
+        unitcost
+      FROM items
+      WHERE 1=1
+    `;
+
+    const params = [];
+
+    // SKU filter
+    if (sku) {
+      query += " AND sku LIKE ?";
+      params.push(`%${sku}%`);
+    }
+
+    // Item Type filter
+    if (item_type) {
+      query += " AND item_type = ?";
+      params.push(item_type.toUpperCase());
+    }
+
+    // Color filter
+    if (color) {
+      query += " AND color = ?";
+      params.push(color);
+    }
+
+    query += " ORDER BY created_at DESC";
+
+    const [rows] = await pool.query(query, params);
+
+    res.json({
+      success: true,
+      count: rows.length,
+      items: rows,
+    });
+
+  } catch (err) {
+    console.error("Error fetching items:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch items",
+    });
+  }
+});
+
+app.get("/api/manager/items/summary", authenticateManager, async (req, res) => {
+  try {
+
+    const [total] = await pool.query(
+      "SELECT COUNT(*) AS total FROM items"
+    );
+
+    const [inStock] = await pool.query(
+      "SELECT COUNT(*) AS count FROM items WHERE qty > 5"
+    );
+
+    const [lowStock] = await pool.query(
+      "SELECT COUNT(*) AS count FROM items WHERE qty BETWEEN 1 AND 5"
+    );
+
+    const [outStock] = await pool.query(
+      "SELECT COUNT(*) AS count FROM items WHERE qty = 0"
+    );
+
+    res.json({
+      total: total[0].total,
+      in_stock: inStock[0].count,
+      low_stock: lowStock[0].count,
+      out_of_stock: outStock[0].count,
+    });
+
+  } catch (err) {
+    console.error("Error fetching item summary:", err);
+    res.status(500).json({ error: "Failed to fetch summary" });
+  }
+});
+
+
+
+app.get("/api/manager/invoices", authenticateManager, async (req, res) => {
+  try {
+    const managerId = req.manager.id;
+
+    /* ---------------------------------------------------
+       1️⃣ FETCH MANAGER INVOICES
+    --------------------------------------------------- */
+
+    const [invoices] = await pool.query(
+      `
+      SELECT 
+        i.*, 
+        o.id AS order_internal_id,
+        o.order_id,
+        o.bill_to,
+        o.account,
+        o.door_style,
+        o.finish_type,
+        o.payment_method,
+        o.payment_status,
+        o.paid_at
+      FROM invoices i
+      LEFT JOIN orders o ON i.order_id = o.id
+      WHERE o.manager_id = ?
+      AND o.status = 'Completed'
+      ORDER BY i.issue_date DESC
+      `,
+      [managerId]
+    );
+
+    /* ---------------------------------------------------
+       2️⃣ FETCH ORDER ITEMS
+    --------------------------------------------------- */
+
+    const orderIds = invoices
+      .map((inv) => inv.order_internal_id)
+      .filter(Boolean);
+
+    let items = [];
+
+    if (orderIds.length > 0) {
+      const [orderItems] = await pool.query(
+        `
+        SELECT 
+          order_id,
+          sku,
+          name,
+          quantity,
+          door_style,
+          finish,
+          price,
+          total_amount
+        FROM order_items
+        WHERE order_id IN (?)
+        `,
+        [orderIds]
+      );
+
+      items = orderItems;
+    }
+
+    /* ---------------------------------------------------
+       3️⃣ MAP ITEMS INTO INVOICES
+    --------------------------------------------------- */
+
+    const invoicesWithItems = invoices.map((invoice) => ({
+      id: invoice.id,
+      invoice_number: invoice.invoice_number,
+      order_id: invoice.order_id,
+      customer_id: invoice.user_id,
+      issue_date: invoice.issue_date,
+
+      subtotal: parseFloat(invoice.subtotal) || 0,
+      tax: parseFloat(invoice.tax) || 0,
+      shipping:
+        invoice.shipping !== null ? parseFloat(invoice.shipping) : null,
+      discount: parseFloat(invoice.discount) || 0,
+      additional_discount: parseFloat(invoice.additional_discount) || 0,
+      total: parseFloat(invoice.total) || 0,
+
+      payment_status: invoice.payment_status || null,
+      payment_method: invoice.payment_method || null,
+      paid_at: invoice.paid_at || null,
+      payment_intent_id: invoice.payment_intent_id || null,
+
+      items: items
+        .filter((item) => item.order_id === invoice.order_internal_id)
+        .map((item) => ({
+          sku: item.sku,
+          name: item.name,
+          quantity: item.quantity,
+          door_style: item.door_style || null,
+          finish: item.finish || null,
+          price: parseFloat(item.price) || 0,
+          total_amount: parseFloat(item.total_amount) || 0,
+        })),
+
+      bill_to: invoice.bill_to || null,
+      account: invoice.account || null,
+      finish_type: invoice.finish_type || null,
+      door_style: invoice.door_style || null,
+    }));
+
+    res.json(invoicesWithItems);
+  } catch (err) {
+    console.error("Manager invoice error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 app.get("/", (req, res) => {
   res.send("App is running");
 });
@@ -13931,3 +15990,4 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
+
