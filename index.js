@@ -15504,86 +15504,211 @@ app.get("/api/manager/orders", authenticateManager, async (req, res) => {
 ══════════════════════════════════════════════ */
 app.put("/api/manager/orders/:id", authenticateManager, async (req, res) => {
   const orderId = req.params.id;
+
   const {
     doorStyle,
     finishType,
     stainOption,
     paintOption,
-    billTo,
     account,
+    billTo,
     jobsiteAddress,
+    items,
+    subtotal,
+    tax,
+    shipping,
+    total,
+    discount,
     requestedDeliveryDate,
     poNumber,
-    discount,
     assemblyFlag,
     designServicesPrice,
     status,
   } = req.body;
 
-  // Basic validation
-  if (!doorStyle || !finishType || !billTo || !account) {
-    return res.status(400).json({ error: "Door style, finish type, billing and shipping address are required" });
-  }
-
-  if (!["Included", "Not Included"].includes(assemblyFlag)) {
-    return res.status(400).json({ error: "Invalid assembly flag" });
-  }
-
-  const validStatuses = ["Pending", "Processing", "Completed", "Cancelled"];
-  if (status && !validStatuses.includes(status)) {
-    return res.status(400).json({ error: "Invalid status value" });
-  }
+  let connection;
 
   try {
-    // Ensure this order belongs to the requesting manager
-    const [existing] = await pool.query(
-      `SELECT id FROM orders WHERE id = ? AND manager_id = ?`,
-      [orderId, req.manager.id]
+
+    /* ---------------------------------------------------
+       1️⃣ GET ORDER
+    --------------------------------------------------- */
+
+    const [orders] = await pool.query(
+      `SELECT * FROM orders WHERE id = ?`,
+      [orderId]
     );
 
-    if (existing.length === 0) {
-      return res.status(403).json({ error: "Order not found or access denied" });
+    if (!orders.length) {
+      return res.status(404).json({ error: "Order not found" });
     }
 
-    await pool.query(
-      `UPDATE orders SET
-        door_style              = ?,
-        finish_type             = ?,
-        stain_option            = ?,
-        paint_option            = ?,
-        bill_to                 = ?,
-        account                 = ?,
-        jobsite_address         = ?,
-        requested_delivery_date = ?,
-        po_number               = ?,
-        discount                = ?,
-        assembly_flag           = ?,
-        design_services_price   = ?,
-        status                  = ?,
-        updated_at              = NOW()
-      WHERE id = ?`,
+    const order = orders[0];
+
+    /* ---------------------------------------------------
+       2️⃣ BASIC VALIDATION
+    --------------------------------------------------- */
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: "Items are required" });
+    }
+
+    if (!doorStyle || !finishType || !account || !billTo) {
+      return res.status(400).json({
+        error: "Door style, finish type, billing and shipping required",
+      });
+    }
+
+    if (finishType === "Stained" && !stainOption) {
+      return res.status(400).json({
+        error: "Stain option required for stained finish",
+      });
+    }
+
+    if (finishType === "Painted" && !paintOption) {
+      return res.status(400).json({
+        error: "Paint option required for painted finish",
+      });
+    }
+
+    /* ---------------------------------------------------
+       3️⃣ START TRANSACTION
+    --------------------------------------------------- */
+
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    /* ---------------------------------------------------
+       4️⃣ RESTORE OLD INVENTORY
+    --------------------------------------------------- */
+
+    const [oldItems] = await connection.query(
+      `SELECT sku, quantity FROM order_items WHERE order_id = ?`,
+      [orderId]
+    );
+
+    for (const item of oldItems) {
+      await connection.query(
+        `UPDATE items SET qty = qty + ? WHERE sku = ?`,
+        [item.quantity, item.sku]
+      );
+    }
+
+    /* ---------------------------------------------------
+       5️⃣ DELETE OLD ITEMS
+    --------------------------------------------------- */
+
+    await connection.query(
+      `DELETE FROM order_items WHERE order_id = ?`,
+      [orderId]
+    );
+
+    /* ---------------------------------------------------
+       6️⃣ INSERT NEW ITEMS
+    --------------------------------------------------- */
+
+    for (const item of items) {
+
+      const [stock] = await connection.query(
+        `SELECT qty FROM items WHERE sku = ?`,
+        [item.sku]
+      );
+
+      if (!stock.length || stock[0].qty < item.quantity) {
+        throw new Error(`Insufficient stock for ${item.sku}`);
+      }
+
+      await connection.query(
+        `INSERT INTO order_items
+        (order_id, sku, name, quantity, price, total_amount, door_style, finish)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          orderId,
+          item.sku,
+          item.name,
+          item.quantity,
+          item.price,
+          item.totalAmount,
+          doorStyle,
+          finishType,
+        ]
+      );
+
+      await connection.query(
+        `UPDATE items SET qty = qty - ? WHERE sku = ?`,
+        [item.quantity, item.sku]
+      );
+    }
+
+    /* ---------------------------------------------------
+       7️⃣ UPDATE ORDER
+    --------------------------------------------------- */
+
+    await connection.query(
+      `UPDATE orders
+       SET door_style = ?,
+           finish_type = ?,
+           stain_option = ?,
+           paint_option = ?,
+           account = ?,
+           bill_to = ?,
+           jobsite_address = ?,
+           subtotal = ?,
+           tax = ?,
+           shipping = ?,
+           discount = ?,
+           total = ?,
+           assembly_flag = ?,
+           design_services_price = ?,
+           requested_delivery_date = ?,
+           po_number = ?,
+           status = ?
+       WHERE id = ?`,
       [
         doorStyle,
         finishType,
-        stainOption  || null,
-        paintOption  || null,
-        billTo,
+        stainOption || null,
+        paintOption || null,
         account,
-        jobsiteAddress         || null,
-        requestedDeliveryDate  || null,
-        poNumber               || null,
-        parseFloat(discount)   || 0,
+        billTo,
+        jobsiteAddress || null,
+        subtotal,
+        tax,
+        shipping ?? null,
+        discount,
+        total,
         assemblyFlag,
-        parseFloat(designServicesPrice) || 0,
-        status || "Pending",
+        designServicesPrice || 0,
+        requestedDeliveryDate || null,
+        poNumber || null,
+        status || order.status,
         orderId,
       ]
     );
 
-    res.json({ message: "Order updated successfully" });
+    await connection.commit();
+
+    /* ---------------------------------------------------
+       8️⃣ RESPONSE
+    --------------------------------------------------- */
+
+    res.json({
+      message: "Order updated successfully",
+      order_id: order.order_id,
+    });
+
   } catch (err) {
+
+    if (connection) await connection.rollback();
+
     console.error("Update order error:", err);
-    res.status(500).json({ error: "Server error" });
+
+    res.status(400).json({ error: err.message });
+
+  } finally {
+
+    if (connection) connection.release();
+
   }
 });
 
